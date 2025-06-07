@@ -1,0 +1,14 @@
+services:
+  app:
+    image: compression-engine:latest
+    build: .
+    # volumes:
+    #   - type: bind
+    #     source: ./
+    #     target: /app
+      # - type: volume
+      #   target: /app/vendor
+    tty: true
+    stdin_open: true
+    # environment:
+    #   - GO_ENV=development
