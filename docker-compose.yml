@@ -2,6 +2,7 @@ services:
   app:
     image: compression-engine:latest
     build: .
+    container_name: "compression"
     # volumes:
     #   - type: bind
     #     source: ./
