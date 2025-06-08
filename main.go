@@ -60,7 +60,7 @@ func main() {
 		compressFS := flag.NewFlagSet("compress", flag.ExitOnError)
 		compressFS.Usage = func() {
 			fmt.Fprintf(os.Stderr, "Usage of %s --compress [OPTIONS] <file(s)>\n", application)
-			fmt.Fprintf(os.Stderr, "Valid commands include:\n\t%s\n", strings.Join([]string {"algorithm, delete, output, outputext, help"}, ", "))
+			fmt.Fprintf(os.Stderr, "Valid commands include:\n\t%s\n", strings.Join([]string{"algorithm, delete, outfileext, help"}, ", "))
 			fmt.Fprintf(os.Stderr, "Flag:\n")
 			compressFS.PrintDefaults()
 			return
@@ -72,8 +72,7 @@ func main() {
 			[]string{
 				"--algorithm",
 				"--delete",
-				"--output",
-				"--outputext",
+				"--outfileext",
 			},
 			os.Args[2:],
 		)
@@ -89,7 +88,7 @@ func main() {
 		if *helpCompress {
 			compressFS.Usage()
 		}
-	
+
 		var fileName string
 		if len(os.Args) > 1 {
 			i := 1
@@ -114,23 +113,13 @@ func main() {
 		}
 		files := strings.Split(fileName, ",")
 		trimSpace(files)
-		var outputCompress, outputExtensionCompress *string
-		if len(files) == 1 {
-			outputCompress = compressFS.String("output", files[0]+".rsn", "File name to output to")
-		} else {
-			outputExtensionCompress = compressFS.String("outputext", "rsn", "File extension used for the result")
-		}
+		outputFileExtensionCompress := compressFS.String("outfileext", "rsn", "File extension used for the result")
 		algorithmsChosen := strings.Split(*algorithmCompress, ",")
 		trimSpace(algorithmsChosen)
-		if len(files) == 1 {
-			engine.CompressFile(algorithmsChosen, files, *outputCompress)
-		} else {
-			engine.CompressFiles(algorithmsChosen, files, *outputExtensionCompress)
-		}
+		engine.CompressFiles(algorithmsChosen, files, *outputFileExtensionCompress)
 		if *deleteAfterCompress {
 			deleteFiles(files)
 		}
-
 	}
 	// var generateHTML *bool
 	// if *benchmarkCmd {
