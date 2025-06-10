@@ -67,7 +67,7 @@ func main() {
 		}
 		algorithmCompress := compressFS.String("algorithm", "huffman", fmt.Sprintf("Which algorithm(s) to use, choices include: \n\t%s", strings.Join(engine.Engines[:], ", ")))
 		deleteAfterCompress := compressFS.Bool("delete", false, "Delete file after compression")
-		outputFileExtensionCompress := compressFS.String("outfileext", ".rsn", "File extension used for the result")
+		outputFileExtensionCompress := compressFS.String("outfileext", ".shk", "File extension used for the result")
 		helpCompress := compressFS.Bool("help", false, "Compress Help")
 		commandArgs = findIntersection(
 			[]string{
@@ -119,6 +119,68 @@ func main() {
 		trimSpace(algorithmsChosen)
 		engine.CompressFiles(algorithmsChosen, files, *outputFileExtensionCompress)
 		if *deleteAfterCompress {
+			deleteFiles(files)
+		}
+	} else if *decompressCmd {
+		decompressFS := flag.NewFlagSet("decompress", flag.ExitOnError)
+		decompressFS.Usage = func() {
+			fmt.Fprintf(os.Stderr, "Usage of %s --decompress [OPTIONS] <file(s)>\n", application)
+			fmt.Fprintf(os.Stderr, "Valid commands include:\n\t%s\n", strings.Join([]string{"algorithm, delete, help"}, ", "))
+			fmt.Fprintf(os.Stderr, "Flag:\n")
+			decompressFS.PrintDefaults()
+			return
+		}
+		deleteAfterDecompress := decompressFS.Bool("delete", true, "Delete compression file after decompression")
+		algorithmDecompress := decompressFS.String("algorithm", "huffman", fmt.Sprintf("Which algorithm(s) to use, choices include: \n\t%s", strings.Join(engine.Engines[:], ", ")))
+		helpDecompress := decompressFS.Bool("help", false, "Help")
+		commandArgs := findIntersection(
+			[]string{
+				"--algorithm",
+				"--delete",
+				"--help",
+			},
+			os.Args[2:],
+		)
+		if len(commandArgs) == 0 {
+			commandArgs = findIntersection(
+				[]string{
+					"--help",
+				},
+				os.Args[2:],
+			)
+		}
+		decompressFS.Parse(commandArgs)
+		if *helpDecompress {
+			decompressFS.Usage()
+		}
+		var fileName string
+		if len(os.Args) > 1 {
+			i := 1
+			for ; i < len(os.Args) && os.Args[i][0] == '-'; i++ {
+			}
+			if i == len(os.Args) {
+				fmt.Println("No file provided for compression")
+				os.Exit(1)
+			}
+			fileName = os.Args[i]
+		}
+		if strings.Contains(fileName, ",") {
+			for _, f := range strings.Split(fileName, ",") {
+				if _, err := os.Stat(f); os.IsNotExist(err) {
+					fmt.Printf("Could not open the provided file %s\n", f)
+					os.Exit(1)
+				}
+			}
+		} else if _, err := os.Stat(fileName); os.IsNotExist(err) {
+			fmt.Printf("Could not open the provided file %s\n", fileName)
+			os.Exit(1)
+		}
+		files := strings.Split(fileName, ",")
+		trimSpace(files)
+		algorithmsChosen := strings.Split(*algorithmDecompress, ",")
+		trimSpace(algorithmsChosen)
+		engine.DecompressFiles(algorithmsChosen, files)
+		if *deleteAfterDecompress {
 			deleteFiles(files)
 		}
 	}

@@ -1,6 +1,7 @@
 package huffman
 
 import (
+	"bytes"
 	"container/heap"
 	"fmt"
 	"io"
@@ -8,14 +9,25 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 var compressionHeader strings.Builder
 
-type Writer struct {
+type CompressionWriter struct {
 	w io.Writer
 }
-
+type decompressionCore struct {
+	inputBuffer  io.ReadWriter
+	outputBuffer io.ReadWriter
+	lock         sync.Mutex
+}
+type DecompressionWriter struct {
+	core *decompressionCore
+}
+type DecompressionReader struct {
+	core *decompressionCore
+}
 type huffmanTree interface {
 	frequency() int
 }
@@ -23,7 +35,6 @@ type huffmanLeaf struct {
 	freq   int
 	symbol rune
 }
-
 type huffmanNode struct {
 	freq        int
 	left, right huffmanTree
@@ -63,20 +74,44 @@ func (node huffmanNode) frequency() int {
 	return node.freq
 }
 
-func (writer *Writer) Write(data []byte) (int, error) {
+func (cw *CompressionWriter) Write(data []byte) (int, error) {
 	compressed := compress(data)
-	writer.w.Write(compressed)
-	return len(compressed), nil
+	return cw.w.Write(compressed)
 }
 
-func (writer *Writer) Close() error {
+func (cw *CompressionWriter) Close() error {
 	return nil
 }
 
-func NewWriter(w io.Writer) io.WriteCloser {
-	newWriter := new(Writer)
-	newWriter.w = w
-	return newWriter
+func NewCompressionWriter(writer io.Writer) io.WriteCloser {
+	newCW := new(CompressionWriter)
+	newCW.w = writer
+	return newCW
+}
+
+func (dr *DecompressionReader) Read(data []byte) (int, error) {
+
+}
+
+func (dr *DecompressionReader) Close() error {
+
+}
+
+func (dw *DecompressionWriter) Write(data []byte) (int, error) {
+
+}
+
+func (dw *DecompressionWriter) Close() error {
+
+}
+
+func NewDecompressionReaderAndWriter() (io.ReadCloser, io.WriteCloser) {
+	newDecompressionCore := new(decompressionCore)
+	newDecompressionCore.inputBuffer = new(bytes.Buffer)
+	newDecompressionCore.outputBuffer = new(bytes.Buffer)
+	newDecompressionReader, newDecompressionWriter := new(DecompressionReader), new(DecompressionWriter)
+	newDecompressionReader.core, newDecompressionWriter.core = newDecompressionCore, newDecompressionCore
+	return newDecompressionReader, newDecompressionWriter
 }
 
 func compress(content []byte) []byte {
