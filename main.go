@@ -67,6 +67,7 @@ func main() {
 		}
 		algorithmCompress := compressFS.String("algorithm", "huffman", fmt.Sprintf("Which algorithm(s) to use, choices include: \n\t%s", strings.Join(engine.Engines[:], ", ")))
 		deleteAfterCompress := compressFS.Bool("delete", false, "Delete file after compression")
+		outputFileExtensionCompress := compressFS.String("outfileext", ".rsn", "File extension used for the result")
 		helpCompress := compressFS.Bool("help", false, "Compress Help")
 		commandArgs = findIntersection(
 			[]string{
@@ -76,6 +77,7 @@ func main() {
 			},
 			os.Args[2:],
 		)
+		// fmt.Println(commandArgs)
 		if len(commandArgs) == 0 {
 			commandArgs = findIntersection(
 				[]string{
@@ -113,7 +115,6 @@ func main() {
 		}
 		files := strings.Split(fileName, ",")
 		trimSpace(files)
-		outputFileExtensionCompress := compressFS.String("outfileext", "rsn", "File extension used for the result")
 		algorithmsChosen := strings.Split(*algorithmCompress, ",")
 		trimSpace(algorithmsChosen)
 		engine.CompressFiles(algorithmsChosen, files, *outputFileExtensionCompress)
@@ -144,7 +145,11 @@ func findIntersection(commandList, argList []string) []string {
 	}
 	var out []string
 	for _, arg := range argList {
-		if _, ok := set[arg]; ok {
+		cmd := arg
+		if strings.Contains(cmd, "=") {
+			cmd = strings.SplitN(cmd, "=", 2)[0]
+		}
+		if _, ok := set[cmd]; ok {
 			out = append(out, arg)
 		}
 	}

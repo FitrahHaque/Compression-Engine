@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/FitrahHaque/Compression-Engine/compressor/huffman"
 )
 
 var Engines = [...]string{
@@ -12,11 +14,8 @@ var Engines = [...]string{
 }
 
 type compressor struct {
-	compressionEngine     string
-	compressedContent     []byte
-	decomposed            []byte
-	pos                   int
-	maxSearchBufferLength int
+	compressionEngine string
+	compressedContent []byte
 }
 
 var writers = map[string]interface{}{
@@ -27,15 +26,15 @@ var writers = map[string]interface{}{
 // 	"huffman": huffman.NewReader,
 // }
 
-func (c *compressor) write(content []byte) error {
+func (c *compressor) write(content []byte) (int, error) {
 	newWriter := writers[c.compressionEngine]
 	var b bytes.Buffer
 	var w io.WriteCloser
-	defer w.Close()
 	w = newWriter.(func(io.Writer) io.WriteCloser)(&b)
+	defer w.Close()
 	w.Write(content)
 	c.compressedContent = b.Bytes()
-	return nil
+	return len(c.compressedContent), nil
 }
 
 func CompressFiles(algorithms []string, files []string, fileExtension string) {
@@ -63,10 +62,12 @@ func compressFile(algorithms []string, filePath string, outputFileName string) [
 func compress(content []byte, algorithms []string) []byte {
 	for _, algorithm := range algorithms {
 		file := compressor{
-			maxSearchBufferLength: 4096,
-			compressionEngine:     algorithm,
+			compressionEngine: algorithm,
 		}
-		file.write(content)
+		if _, err := file.write(content); err != nil {
+			fmt.Println("error compressing the document")
+			os.Exit(1)
+		}
 		content = file.compressedContent
 	}
 	return content
