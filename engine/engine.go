@@ -113,6 +113,9 @@ func decompressFile(algorithms []string, compressedFilePath string) {
 		if content, err = io.ReadAll(d.reader); err != nil {
 			panic(err)
 		}
+		if err = d.reader.Close(); err != nil {
+			panic(err)
+		}
 	}
 	if err = os.WriteFile(outputFileName, content, 0666); err != nil {
 		panic(err)
