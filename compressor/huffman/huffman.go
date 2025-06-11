@@ -13,8 +13,6 @@ import (
 	"sync"
 )
 
-var compressionHeader strings.Builder
-
 type CompressionWriter struct {
 	w io.Writer
 }
@@ -142,12 +140,12 @@ func NewDecompressionReaderAndWriter() (io.ReadCloser, io.WriteCloser) {
 }
 
 func compress(content []byte) []byte {
-	compressionHeader.Reset()
 	contentString := string(content)
 	symbolFreq := make(map[rune]int)
 	for _, c := range contentString {
 		symbolFreq[c]++
 	}
+	var compressionHeader strings.Builder
 	for key, val := range symbolFreq {
 		if key == 10 {
 			fmt.Fprintf(&compressionHeader, "%s|\\n", strconv.Itoa(val))
@@ -156,12 +154,31 @@ func compress(content []byte) []byte {
 		}
 	}
 	tree := buildTree(symbolFreq)
-	compressed := encode(tree, contentString)
+	compressed := encode(tree, contentString, compressionHeader)
 	return compressed
 }
 
 func decompress(content []byte) []byte {
-	return []byte{}
+	contentString := string(content)
+	compressionHeader := strings.SplitN(contentString, "\\\n", 2)[0]
+	symbolFreq := make(map[rune]int)
+	var freq int
+	for i := 0; i < len(compressionHeader); i++ {
+		if compressionHeader[i] == '|' && compressionHeader[i-1] != '|' {
+			var err error
+			if freq, err = strconv.Atoi(string(compressionHeader[i-1])); err != nil {
+				panic(err)
+			}
+			if compressionHeader[i+1] != '\\' && (i+2 >= len(compressionHeader) || compressionHeader[i+2] != 'n') {
+				symbolFreq[rune(compressionHeader[i+1])] = freq
+			} else {
+				symbolFreq[10] = freq
+			}
+		}
+	}
+	tree := buildTree(symbolFreq)
+	decompressedData := decode(tree, contentString)
+	return decompressedData
 }
 
 func buildTree(symbolFreq map[rune]int) huffmanTree {
@@ -200,6 +217,25 @@ func getSymbolEncoding(tree huffmanTree, symbolEnc map[rune]string, currentPrefi
 	return symbolEnc
 }
 
+func getSymbol(root huffmanTree, currentNode huffmanTree, huffmanCode string, index int, data *strings.Builder) {
+	if index >= len(huffmanCode) {
+		return
+	}
+	switch node := currentNode.(type) {
+	case huffmanLeaf:
+		fmt.Fprintf(data, "%s", string(node.symbol))
+		getSymbol(root, root, huffmanCode, index+1, data)
+		return
+	case huffmanNode:
+		if huffmanCode[index] == '0' {
+			getSymbol(root, node.left, huffmanCode, index+1, data)
+		} else {
+			getSymbol(root, node.right, huffmanCode, index+1, data)
+		}
+		return
+	}
+}
+
 func (b bitString) asByteSlice() []byte {
 	var output []byte
 	for i := len(b); i > 0; i -= 8 {
@@ -214,13 +250,13 @@ func (b bitString) asByteSlice() []byte {
 			fmt.Println("Error converting string to byte for compression")
 			os.Exit(1)
 		}
-		output = append(output, []byte{byte(chunkInt)}...)
+		output = append(output, byte(chunkInt))
 	}
 	slices.Reverse(output)
 	return output
 }
 
-func encode(tree huffmanTree, input string) []byte {
+func encode(tree huffmanTree, input string, compressionHeader strings.Builder) []byte {
 	var output strings.Builder
 	symbolEnc := make(map[rune]string)
 	symbolEnc = getSymbolEncoding(tree, symbolEnc, []byte{})
@@ -236,4 +272,23 @@ func encode(tree huffmanTree, input string) []byte {
 	inputBytes := inputBitString.asByteSlice()
 	// fmt.Printf("compressionHeader:\n%s\n\npaddingbyte:\n%v\n\ninputbytes:\n%v\n\n\n", compressionHeader.String(), paddingByte, inputBytes)
 	return append([]byte(compressionHeader.String()), append([]byte("\\\n"), append(paddingByte, inputBytes...)...)...)
+}
+
+func decode(tree huffmanTree, input string) []byte {
+	contentString := strings.SplitN(input, "\\\n", 2)[1]
+	contentBytes := []byte(contentString)
+	var huffmanCodeBuilder strings.Builder
+	var offset int
+	for i, bait := range contentBytes {
+		if i > 0 {
+			binary := fmt.Sprintf("%08b", bait)
+			fmt.Fprintf(&huffmanCodeBuilder, "%s", binary)
+		} else {
+			offset = int(bait)
+		}
+	}
+	huffmanCode := huffmanCodeBuilder.String()[offset:]
+	var decompressedData strings.Builder
+	getSymbol(tree, tree, huffmanCode, 0, &decompressedData)
+	return []byte(decompressedData.String())
 }
