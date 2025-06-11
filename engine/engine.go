@@ -102,13 +102,14 @@ func decompressFile(algorithms []string, compressedFilePath string) {
 			decompressionEngine: algorithm,
 		}
 		decompressor.init()
-		// defer decompressor.compressedReader.Close()
 		decompressors = append(decompressors, decompressor)
 	}
 	content := fileContent
 	for _, d := range decompressors {
 		d.writer.Write(content)
-		d.writer.Close()
+		if err = d.writer.Close(); err != nil {
+			panic(err)
+		}
 		if content, err = io.ReadAll(d.reader); err != nil {
 			panic(err)
 		}

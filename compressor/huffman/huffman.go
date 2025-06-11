@@ -3,6 +3,7 @@ package huffman
 import (
 	"bytes"
 	"container/heap"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -18,9 +19,10 @@ type CompressionWriter struct {
 	w io.Writer
 }
 type decompressionCore struct {
-	inputBuffer  io.ReadWriter
-	outputBuffer io.ReadWriter
-	lock         sync.Mutex
+	isInputBufferClosed bool
+	lock                sync.Mutex
+	inputBuffer         io.ReadWriter
+	outputBuffer        io.ReadWriter
 }
 type DecompressionWriter struct {
 	core *decompressionCore
@@ -90,25 +92,44 @@ func NewCompressionWriter(writer io.Writer) io.WriteCloser {
 }
 
 func (dr *DecompressionReader) Read(data []byte) (int, error) {
-
+	dr.core.lock.Lock()
+	defer dr.core.lock.Unlock()
+	if !dr.core.isInputBufferClosed {
+		return 0, errors.New("input buffer not closed")
+	}
+	return dr.core.outputBuffer.Read(data)
 }
 
 func (dr *DecompressionReader) Close() error {
-
+	return nil
 }
 
 func (dw *DecompressionWriter) Write(data []byte) (int, error) {
-
+	dw.core.lock.Lock()
+	defer dw.core.lock.Unlock()
+	return dw.core.inputBuffer.Write(data)
 }
 
 func (dw *DecompressionWriter) Close() error {
-
+	dw.core.lock.Lock()
+	defer dw.core.lock.Unlock()
+	dw.core.isInputBufferClosed = true
+	compressedData, err := io.ReadAll(dw.core.inputBuffer)
+	if err != nil {
+		return err
+	}
+	decompressedData := decompress(compressedData)
+	if _, err = dw.core.outputBuffer.Write(decompressedData); err != nil {
+		return err
+	}
+	return nil
 }
 
 func NewDecompressionReaderAndWriter() (io.ReadCloser, io.WriteCloser) {
 	newDecompressionCore := new(decompressionCore)
 	newDecompressionCore.inputBuffer = new(bytes.Buffer)
 	newDecompressionCore.outputBuffer = new(bytes.Buffer)
+	newDecompressionCore.isInputBufferClosed = false
 	newDecompressionReader, newDecompressionWriter := new(DecompressionReader), new(DecompressionWriter)
 	newDecompressionReader.core, newDecompressionWriter.core = newDecompressionCore, newDecompressionCore
 	return newDecompressionReader, newDecompressionWriter
@@ -134,6 +155,10 @@ func compress(content []byte) []byte {
 	tree := buildTree(symbolFreq)
 	compressed := encode(tree, contentString)
 	return compressed
+}
+
+func decompress(content []byte) []byte {
+	return []byte{}
 }
 
 func buildTree(symbolFreq map[rune]int) huffmanTree {
