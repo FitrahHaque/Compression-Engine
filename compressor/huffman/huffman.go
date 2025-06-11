@@ -101,7 +101,14 @@ func (dr *DecompressionReader) Read(data []byte) (int, error) {
 }
 
 func (dr *DecompressionReader) Close() error {
-	return nil
+	dr.core.lock.Lock()
+	defer dr.core.lock.Unlock()
+	if buf, ok := dr.core.inputBuffer.(*bytes.Buffer); ok {
+		buf.Reset()
+		return nil
+	} else {
+		return errors.New("underlying io.ReadWriter is not *bytes.Buffer. Type assertion failed")
+	}
 }
 
 func (dw *DecompressionWriter) Write(data []byte) (int, error) {
@@ -127,8 +134,7 @@ func (dw *DecompressionWriter) Close() error {
 
 func NewDecompressionReaderAndWriter() (io.ReadCloser, io.WriteCloser) {
 	newDecompressionCore := new(decompressionCore)
-	newDecompressionCore.inputBuffer = new(bytes.Buffer)
-	newDecompressionCore.outputBuffer = new(bytes.Buffer)
+	newDecompressionCore.inputBuffer, newDecompressionCore.outputBuffer = new(bytes.Buffer), new(bytes.Buffer)
 	newDecompressionCore.isInputBufferClosed = false
 	newDecompressionReader, newDecompressionWriter := new(DecompressionReader), new(DecompressionWriter)
 	newDecompressionReader.core, newDecompressionWriter.core = newDecompressionCore, newDecompressionCore
@@ -137,9 +143,6 @@ func NewDecompressionReaderAndWriter() (io.ReadCloser, io.WriteCloser) {
 
 func compress(content []byte) []byte {
 	compressionHeader.Reset()
-	// answer.Reset()
-	// newTree := new(huffmanTree)
-	// newHeap := new(huffmanHeap)
 	contentString := string(content)
 	symbolFreq := make(map[rune]int)
 	for _, c := range contentString {

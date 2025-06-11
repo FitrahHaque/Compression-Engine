@@ -119,17 +119,8 @@ func decompressFile(algorithms []string, compressedFilePath string) {
 	}
 }
 
-func Exists(strList []string, t string) bool {
-	for _, s := range strList {
-		if s == t {
-			return true
-		}
-	}
-	return false
-}
-
 func (d *decompression) init() {
-	if !Exists(Engines[:], d.decompressionEngine) {
+	if !slices.Contains(Engines[:], d.decompressionEngine) {
 		fmt.Println("decompression engine does not exist")
 		os.Exit(1)
 	}
