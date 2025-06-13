@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -83,14 +82,18 @@ func compress(content []byte, algorithms []string) []byte {
 }
 
 func DecompressFiles(algorithms []string, files []string) {
+	// fmt.Printf("DecompresFiles function params: (algorithms, files): (%v, %v)\n", algorithms, files)
 	for _, file := range files {
 		decompressFile(algorithms, file)
 	}
 }
 
 func decompressFile(algorithms []string, compressedFilePath string) {
-	outputFileName := strings.TrimSuffix(compressedFilePath, filepath.Ext(compressedFilePath))
+	// outputFileName := strings.TrimSuffix(compressedFilePath, filepath.Ext(compressedFilePath))
+	outputFileName := strings.SplitN(compressedFilePath, ".", 2)[0]
+	outputFileName = outputFileName + "-decompressed" + ".txt"
 	fileContent, err := os.ReadFile(compressedFilePath)
+	// fmt.Printf("decompressFile function: compressFilePath: %v, outputFileName: %v, fileContent: %v\n", compressedFilePath, outputFileName, fileContent)
 	if err != nil {
 		panic(err)
 	}
@@ -120,6 +123,7 @@ func decompressFile(algorithms []string, compressedFilePath string) {
 	if err = os.WriteFile(outputFileName, content, 0666); err != nil {
 		panic(err)
 	}
+	fmt.Printf("File `%s` has been decompressed into File `%s` into the current directory\n", compressedFilePath, outputFileName)
 }
 
 func (d *decompression) init() {

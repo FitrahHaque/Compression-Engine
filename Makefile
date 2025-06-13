@@ -14,3 +14,7 @@ install: build
 
 clean:
 	rm -f $(BINARY).o
+
+dev: install
+	shrink --compress a.txt
+	shrink --decompress a.txt.shk

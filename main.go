@@ -122,6 +122,7 @@ func main() {
 			deleteFiles(files)
 		}
 	} else if *decompressCmd {
+		// fmt.Printf("os.Args[2:]: %v\n", os.Args[2:])
 		decompressFS := flag.NewFlagSet("decompress", flag.ExitOnError)
 		decompressFS.Usage = func() {
 			fmt.Fprintf(os.Stderr, "Usage of %s --decompress [OPTIONS] <file(s)>\n", application)
@@ -141,6 +142,7 @@ func main() {
 			},
 			os.Args[2:],
 		)
+		// fmt.Printf("len(commandArgs): %v\n", len(commandArgs))
 		if len(commandArgs) == 0 {
 			commandArgs = findIntersection(
 				[]string{
