@@ -45,11 +45,11 @@ type huffmanHeap []huffmanTree
 
 type bitString string
 
-func (hub *huffmanHeap) Push(item interface{}) {
+func (hub *huffmanHeap) Push(item any) {
 	*hub = append(*hub, item.(huffmanTree))
 }
 
-func (hub *huffmanHeap) Pop() interface{} {
+func (hub *huffmanHeap) Pop() any {
 	popped := (*hub)[len(*hub)-1]
 	(*hub) = (*hub)[:len(*hub)-1]
 	return popped
