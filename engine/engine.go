@@ -62,9 +62,11 @@ func compressFile(algorithms []string, filePath string, outputFileName string) {
 	if err = os.WriteFile(outputFileName, compressed, 0644); err != nil {
 		panic(err)
 	}
+	fmt.Printf("File `%s` has been compressed into the file `%s`\n", filePath, outputFileName)
 	fmt.Printf("Original size (in bytes): %v\n", len(fileContent))
 	fmt.Printf("Compressed size (in bytes): %v\n", len(compressed))
 	fmt.Printf("Compression ratio: %.2f%%\n", float32(len(compressed))/float32(len(fileContent))*100)
+
 }
 
 func compress(content []byte, algorithms []string) []byte {
