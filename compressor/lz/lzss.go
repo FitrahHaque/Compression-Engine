@@ -47,9 +47,11 @@ func NewCompressionWriter(w io.Writer) io.WriteCloser {
 
 func compress(content []byte, maxSearchBufferLength int) []byte {
 	contentString := string(content)
+	// fmt.Printf("[ lzss - compress ] contentString:%v\n", contentString)
 	contentRune := []rune(contentString)
 	contentRune = escapeConflictingSymbols(contentRune)
 	contentString = string(contentRune)
+	// fmt.Printf("[ lzss - compress ] contentString (after escaping): %v\n", contentString)
 	content = []byte(contentString)
 
 	bar := pb.New(len(content))
@@ -60,8 +62,10 @@ func compress(content []byte, maxSearchBufferLength int) []byte {
 	for i := range len(content) {
 		refChannels[i] = make(chan Reference, 1)
 		searchStartIdx := max(0, i-maxSearchBufferLength)
-		nextEndIdx := min(len(content), i+maxSearchBufferLength)
-		go matchSearchBuffer(refChannels[i], content[searchStartIdx:i], []byte{content[i]}, content[i:nextEndIdx])
+		nextEndIdx := min(len(content), i+maxSearchBufferLength-1)
+		// fmt.Printf("[ lzss - compress ] index %v\tsearchBuffer\n%v\n", i, string(content[searchStartIdx:i]))
+		// fmt.Printf("[ lzss - compress ] index %v\tpattern\n%v\n", i, string(content[i:nextEndIdx]))
+		go matchSearchBuffer(refChannels[i], content[searchStartIdx:i], []byte{content[i]}, content[i+1:nextEndIdx])
 	}
 
 	var compressedContent []byte
@@ -71,11 +75,13 @@ func compress(content []byte, maxSearchBufferLength int) []byte {
 		if nextBytesToIgnore > 0 {
 			nextBytesToIgnore--
 		} else if ref.isRef {
+			// fmt.Printf("[ lzss - compress ] isRef at index %v for content: %v\n", i, string(ref.value))
 			encoding := getSymbolEncoded(ref.negativeOffset, ref.size)
 			if len(encoding) < ref.size {
 				compressedContent = append(compressedContent, encoding...)
 				nextBytesToIgnore = ref.size - 1
 			} else {
+				// fmt.Printf("[ lzss - compress ] ref not used at index: %v, content at loc: %v\n", i, string(ref.value[0]))
 				compressedContent = append(compressedContent, ref.value[0])
 			}
 		} else {
@@ -83,6 +89,7 @@ func compress(content []byte, maxSearchBufferLength int) []byte {
 		}
 		bar.Increment()
 	}
+	// fmt.Printf("[ lzss - compress ] compressContent\n%v\n", string(compressedContent))
 	return compressedContent
 }
 
@@ -114,20 +121,26 @@ func kmp(searchBuffer []byte, pattern []byte) (int, int) {
 		if best < k {
 			best = k
 			bestIndex = i - k + 1
+			if k == len(pattern) {
+				break
+			}
 		}
+
 	}
 	return best, bestIndex
 }
 
 func matchSearchBuffer(refChannel chan<- Reference, searchBuffer []byte, scanBytes []byte, nextBytes []byte) {
 	pattern := append(scanBytes, nextBytes...)
+	// fmt.Printf("[ lzss - matchSearchBuffer ] searchBuffer\n%v\n", string(searchBuffer))
+	// fmt.Printf("[ lzss - matchSearchBuffer ] pattern\n%v\n", string(pattern))
 	matchedLength, matchedAt := kmp(searchBuffer, pattern)
 	var ref Reference
 	if matchedLength > 1 {
 		ref.isRef = true
 		ref.value = pattern[:matchedLength]
 		ref.size = matchedLength
-		ref.negativeOffset = len(pattern) - matchedAt
+		ref.negativeOffset = len(searchBuffer) - matchedAt
 	} else {
 		ref.isRef = false
 		ref.value = scanBytes
