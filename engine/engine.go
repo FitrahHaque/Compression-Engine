@@ -9,10 +9,12 @@ import (
 	"strings"
 
 	"github.com/FitrahHaque/Compression-Engine/compressor/huffman"
+	"github.com/FitrahHaque/Compression-Engine/compressor/lz"
 )
 
 var Engines = [...]string{
 	"huffman",
+	"lzss",
 }
 
 type compression struct {
@@ -24,14 +26,14 @@ type decompression struct {
 	decompressionEngine string
 	writer              io.WriteCloser
 	reader              io.ReadCloser
-	decompressedContent []byte
 }
 
-var compressionWriters = map[string]interface{}{
+var compressionWriters = map[string]any{
 	"huffman": huffman.NewCompressionWriter,
+	"lzss":    lz.NewCompressionWriter,
 }
 
-var decompressionReaderAndWriters = map[string]interface{}{
+var decompressionReaderAndWriters = map[string]any{
 	"huffman": huffman.NewDecompressionReaderAndWriter,
 }
 
@@ -66,7 +68,6 @@ func compressFile(algorithms []string, filePath string, outputFileName string) {
 	fmt.Printf("Original size (in bytes): %v\n", len(fileContent))
 	fmt.Printf("Compressed size (in bytes): %v\n", len(compressed))
 	fmt.Printf("Compression ratio: %.2f%%\n", float32(len(compressed))/float32(len(fileContent))*100)
-
 }
 
 func compress(content []byte, algorithms []string) []byte {

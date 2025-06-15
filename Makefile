@@ -1,7 +1,7 @@
 BINARY  := shrink
 DESTDIR := $(HOME)/bin
 
-.PHONY: all build install clean
+.PHONY: all build install clean dev compress
 
 all: build
 
@@ -16,5 +16,8 @@ clean:
 	rm -f $(BINARY).o
 
 dev: install
-	shrink --compress a.txt
+	shrink --compress --algorithm=huffman a.txt
 	shrink --decompress a.txt.shk
+
+compress: install
+	shrink --compress --algorithm=lzss b.txt
