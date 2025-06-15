@@ -131,7 +131,7 @@ func main() {
 			decompressFS.PrintDefaults()
 			return
 		}
-		deleteAfterDecompress := decompressFS.Bool("delete", true, "Delete compression file after decompression")
+		deleteAfterDecompress := decompressFS.Bool("delete", false, "Delete compression file after decompression")
 		algorithmDecompress := decompressFS.String("algorithm", "huffman", fmt.Sprintf("Which algorithm(s) to use, choices include: \n\t%s", strings.Join(engine.Engines[:], ", ")))
 		helpDecompress := decompressFS.Bool("help", false, "Help")
 		commandArgs := findIntersection(

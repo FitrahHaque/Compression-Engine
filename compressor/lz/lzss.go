@@ -261,7 +261,7 @@ func decodeBackRefs(refedContent []rune) ([]rune, error) {
 	for i := 0; i < len(refedContent); i++ {
 		if refOn == false && refedContent[i] == Opening && countEscapesInReverse(refedContent, i-1)%2 == 0 {
 			refValue = []rune{}
-			currentRefStart = i
+			currentRefStart = len(derefedContent)
 			refOn = true
 		} else if refOn == true {
 			if refedContent[i] == Separator {
@@ -303,7 +303,7 @@ func countEscapesInReverse(content []rune, endIdx int) int {
 
 func replaceRef(content []rune, refIdx, negOffset, length int) []rune {
 	startIdx := refIdx - negOffset
-	endIdx := startIdx + length - 1
+	endIdx := startIdx + length
 	return content[startIdx:endIdx]
 }
 
@@ -320,5 +320,6 @@ func removeEscapes(content []rune) ([]rune, error) {
 			cleanedContent = append(cleanedContent, content[i])
 		}
 	}
+	slices.Reverse(cleanedContent)
 	return cleanedContent, nil
 }
