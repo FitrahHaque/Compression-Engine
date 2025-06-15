@@ -35,6 +35,7 @@ var compressionWriters = map[string]any{
 
 var decompressionReaderAndWriters = map[string]any{
 	"huffman": huffman.NewDecompressionReaderAndWriter,
+	"lzss":    lz.NewDecompressionReaderAndWriter,
 }
 
 func (c *compression) write(content []byte) (int, error) {
@@ -139,6 +140,8 @@ func (d *decompression) init() {
 	case "huffman":
 		d.reader, d.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
 		return
+	case "lzss":
+		d.reader, d.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
 	default:
 		return
 	}
