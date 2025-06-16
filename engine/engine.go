@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/FitrahHaque/Compression-Engine/compressor/huffman"
-	"github.com/FitrahHaque/Compression-Engine/compressor/lz"
+	"github.com/FitrahHaque/Compression-Engine/compressor/lzss"
 )
 
 var Engines = [...]string{
@@ -30,12 +30,12 @@ type decompression struct {
 
 var compressionReaderAndWriters = map[string]any{
 	"huffman": huffman.NewCompressionReaderAndWriter,
-	"lzss":    lz.NewCompressionReaderAndWriter,
+	"lzss":    lzss.NewCompressionReaderAndWriter,
 }
 
 var decompressionReaderAndWriters = map[string]any{
 	"huffman": huffman.NewDecompressionReaderAndWriter,
-	"lzss":    lz.NewDecompressionReaderAndWriter,
+	"lzss":    lzss.NewDecompressionReaderAndWriter,
 }
 
 func CompressFiles(algorithms []string, files []string, fileExtension string) {
