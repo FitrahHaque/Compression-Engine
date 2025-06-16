@@ -14,8 +14,18 @@ import (
 	"unicode"
 )
 
+type compressionCore struct {
+	isInputBufferClosed bool
+	lock                sync.Mutex
+	inputBuffer         io.ReadWriter
+	outputBuffer        io.ReadWriter
+}
+
 type CompressionWriter struct {
-	w io.Writer
+	core *compressionCore
+}
+type CompressionReader struct {
+	core *compressionCore
 }
 type decompressionCore struct {
 	isInputBufferClosed bool
@@ -87,19 +97,55 @@ func (node huffmanNode) getId() int {
 	return node.id
 }
 
+func (cr *CompressionReader) Read(data []byte) (int, error) {
+	cr.core.lock.Lock()
+	defer cr.core.lock.Unlock()
+	if !cr.core.isInputBufferClosed {
+		return 0, errors.New("input buffer not closed")
+	}
+	return cr.core.outputBuffer.Read(data)
+}
+
+func (cr *CompressionReader) Close() error {
+	cr.core.lock.Lock()
+	defer cr.core.lock.Unlock()
+	if buf, ok := cr.core.inputBuffer.(*bytes.Buffer); ok {
+		buf.Reset()
+		return nil
+	} else {
+		return errors.New("underlying io.ReadWriter is not *bytes.Buffer. Type assertion failed")
+	}
+}
+
 func (cw *CompressionWriter) Write(data []byte) (int, error) {
-	compressed := compress(data)
-	return cw.w.Write(compressed)
+	cw.core.lock.Lock()
+	defer cw.core.lock.Unlock()
+	return cw.core.inputBuffer.Write(data)
 }
 
 func (cw *CompressionWriter) Close() error {
+	cw.core.lock.Lock()
+	defer cw.core.lock.Unlock()
+	cw.core.isInputBufferClosed = true
+	originalData, err := io.ReadAll(cw.core.inputBuffer)
+	// fmt.Printf("[ DecompressionWriter.Close ] compressedData: %v\n", compressedData)
+	if err != nil {
+		return err
+	}
+	compressedData := compress(originalData)
+	if _, err = cw.core.outputBuffer.Write(compressedData); err != nil {
+		return err
+	}
 	return nil
 }
 
-func NewCompressionWriter(writer io.Writer) io.WriteCloser {
-	newCW := new(CompressionWriter)
-	newCW.w = writer
-	return newCW
+func NewCompressionReaderAndWriter() (io.ReadCloser, io.WriteCloser) {
+	newCompressionCore := new(compressionCore)
+	newCompressionCore.inputBuffer, newCompressionCore.outputBuffer = new(bytes.Buffer), new(bytes.Buffer)
+	newCompressionCore.isInputBufferClosed = false
+	newCompressionReader, newCompressionWriter := new(CompressionReader), new(CompressionWriter)
+	newCompressionReader.core, newCompressionWriter.core = newCompressionCore, newCompressionCore
+	return newCompressionReader, newCompressionWriter
 }
 
 func (dr *DecompressionReader) Read(data []byte) (int, error) {

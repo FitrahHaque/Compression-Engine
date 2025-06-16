@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -19,7 +18,8 @@ var Engines = [...]string{
 
 type compression struct {
 	compressionEngine string
-	compressedContent []byte
+	writer            io.WriteCloser
+	reader            io.ReadCloser
 }
 
 type decompression struct {
@@ -28,25 +28,14 @@ type decompression struct {
 	reader              io.ReadCloser
 }
 
-var compressionWriters = map[string]any{
-	"huffman": huffman.NewCompressionWriter,
-	"lzss":    lz.NewCompressionWriter,
+var compressionReaderAndWriters = map[string]any{
+	"huffman": huffman.NewCompressionReaderAndWriter,
+	"lzss":    lz.NewCompressionReaderAndWriter,
 }
 
 var decompressionReaderAndWriters = map[string]any{
 	"huffman": huffman.NewDecompressionReaderAndWriter,
 	"lzss":    lz.NewDecompressionReaderAndWriter,
-}
-
-func (c *compression) write(content []byte) (int, error) {
-	newCm := compressionWriters[c.compressionEngine]
-	var b bytes.Buffer
-	var w io.WriteCloser
-	w = newCm.(func(io.Writer) io.WriteCloser)(&b)
-	defer w.Close()
-	w.Write(content)
-	c.compressedContent = b.Bytes()
-	return len(c.compressedContent), nil
 }
 
 func CompressFiles(algorithms []string, files []string, fileExtension string) {
@@ -61,28 +50,36 @@ func compressFile(algorithms []string, filePath string, outputFileName string) {
 		panic(err)
 	}
 	fmt.Println("Compressing...")
-	compressed := compress(fileContent, algorithms)
-	if err = os.WriteFile(outputFileName, compressed, 0644); err != nil {
-		panic(err)
-	}
-	fmt.Printf("File `%s` has been compressed into the file `%s`\n", filePath, outputFileName)
-	fmt.Printf("Original size (in bytes): %v\n", len(fileContent))
-	fmt.Printf("Compressed size (in bytes): %v\n", len(compressed))
-	fmt.Printf("Compression ratio: %.2f%%\n", float32(len(compressed))/float32(len(fileContent))*100)
-}
-
-func compress(content []byte, algorithms []string) []byte {
+	var compressors []compression
 	for _, algorithm := range algorithms {
 		compressor := compression{
 			compressionEngine: algorithm,
 		}
-		if _, err := compressor.write(content); err != nil {
-			fmt.Println("error compressing the document")
-			os.Exit(1)
-		}
-		content = compressor.compressedContent
+		compressor.init()
+		compressors = append(compressors, compressor)
 	}
-	return content
+	content := fileContent
+	for _, c := range compressors {
+		if _, err := c.writer.Write(content); err != nil {
+			panic(err)
+		}
+		if err = c.writer.Close(); err != nil {
+			panic(err)
+		}
+		if content, err = io.ReadAll(c.reader); err != nil {
+			panic(err)
+		}
+		if err = c.reader.Close(); err != nil {
+			panic(err)
+		}
+	}
+	if err = os.WriteFile(outputFileName, content, 0644); err != nil {
+		panic(err)
+	}
+	fmt.Printf("File `%s` has been compressed into the file `%s`\n", filePath, outputFileName)
+	fmt.Printf("Original size (in bytes): %v\n", len(fileContent))
+	fmt.Printf("Compressed size (in bytes): %v\n", len(content))
+	fmt.Printf("Compression ratio: %.2f%%\n", float32(len(content))/float32(len(fileContent))*100)
 }
 
 func DecompressFiles(algorithms []string, files []string) {
@@ -113,7 +110,9 @@ func decompressFile(algorithms []string, compressedFilePath string) {
 	}
 	content := fileContent
 	for _, d := range decompressors {
-		d.writer.Write(content)
+		if _, err = d.writer.Write(content); err != nil {
+			panic(err)
+		}
 		if err = d.writer.Close(); err != nil {
 			panic(err)
 		}
@@ -142,6 +141,23 @@ func (d *decompression) init() {
 		return
 	case "lzss":
 		d.reader, d.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
+	default:
+		return
+	}
+}
+
+func (c *compression) init() {
+	if !slices.Contains(Engines[:], c.compressionEngine) {
+		fmt.Println("compression engine does not exist")
+		os.Exit(1)
+	}
+	newReaderAndWriterFunc := compressionReaderAndWriters[c.compressionEngine]
+	switch c.compressionEngine {
+	case "huffman":
+		c.reader, c.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
+		return
+	case "lzss":
+		c.reader, c.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
 	default:
 		return
 	}

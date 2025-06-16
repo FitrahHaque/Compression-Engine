@@ -27,10 +27,21 @@ type Reference struct {
 
 var conflictingLiterals = []rune{'<', '>', ',', '\\'}
 
-type CompressionWriter struct {
-	windowSize int
-	writer     io.Writer
+type compressionCore struct {
+	isInputBufferClosed bool
+	lock                sync.Mutex
+	inputBuffer         io.ReadWriter
+	outputBuffer        io.ReadWriter
 }
+
+type CompressionWriter struct {
+	core *compressionCore
+}
+
+type CompressionReader struct {
+	core *compressionCore
+}
+
 type decompressionCore struct {
 	isInputBufferClosed bool
 	lock                sync.Mutex
@@ -47,19 +58,53 @@ type DecompressionReader struct {
 }
 
 func (cw *CompressionWriter) Write(data []byte) (int, error) {
-	compressed := compress(data, cw.windowSize)
-	return cw.writer.Write(compressed)
+	cw.core.lock.Lock()
+	defer cw.core.lock.Unlock()
+	return cw.core.inputBuffer.Write(data)
 }
 
 func (cw *CompressionWriter) Close() error {
+	cw.core.lock.Lock()
+	defer cw.core.lock.Unlock()
+	cw.core.isInputBufferClosed = true
+	originalData, err := io.ReadAll(cw.core.inputBuffer)
+	if err != nil {
+		return err
+	}
+	compressedData := compress(originalData, 4096)
+	if _, err = cw.core.outputBuffer.Write(compressedData); err != nil {
+		return err
+	}
 	return nil
 }
 
-func NewCompressionWriter(w io.Writer) io.WriteCloser {
-	newCW := new(CompressionWriter)
-	newCW.windowSize = 4096
-	newCW.writer = w
-	return newCW
+func (cr *CompressionReader) Read(data []byte) (int, error) {
+	cr.core.lock.Lock()
+	defer cr.core.lock.Unlock()
+	if !cr.core.isInputBufferClosed {
+		return 0, errors.New("compression failed because compression content upload has not been signaled as complete!")
+	}
+	return cr.core.outputBuffer.Read(data)
+}
+
+func (cr *CompressionReader) Close() error {
+	cr.core.lock.Lock()
+	defer cr.core.lock.Unlock()
+	if buf, ok := cr.core.inputBuffer.(*bytes.Buffer); ok {
+		buf.Reset()
+		return nil
+	} else {
+		return errors.New("Original content buffer closing failure. Type assertion failed because underlying io.ReadWriter is not *bytes.Buffer.")
+	}
+}
+
+func NewCompressionReaderAndWriter() (io.ReadCloser, io.WriteCloser) {
+	newCompressionCore := new(compressionCore)
+	newCompressionCore.inputBuffer, newCompressionCore.outputBuffer = new(bytes.Buffer), new(bytes.Buffer)
+	newCompressionCore.isInputBufferClosed = false
+	newCompressionReader, newCompressionWriter := new(CompressionReader), new(CompressionWriter)
+	newCompressionReader.core, newCompressionWriter.core = newCompressionCore, newCompressionCore
+	return newCompressionReader, newCompressionWriter
 }
 
 func compress(content []byte, maxSearchBufferLength int) []byte {
