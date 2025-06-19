@@ -108,7 +108,6 @@ func getSymbolEncoding(tree huffmanTree, symbolEnc map[rune]string, currentPrefi
 		getSymbolEncoding(node.right, symbolEnc, append(currentPrefix, byte('1')))
 		return
 	}
-	return
 }
 
 func (b bitString) asByteSlice() []byte {
