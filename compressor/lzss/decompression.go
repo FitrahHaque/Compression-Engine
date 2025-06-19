@@ -96,26 +96,27 @@ func decodeBackRefs(refedContent []rune) ([]rune, error) {
 	var currentNegOffset, currentLength, currentRefStart int
 	var refValue []rune
 	var derefedContent []rune
-	for i := 0; i < len(refedContent); i++ {
+	for i := range refedContent {
 		if refOn == false && refedContent[i] == Opening && countEscapesInReverse(refedContent, i-1)%2 == 0 {
 			refValue = []rune{}
 			currentRefStart = len(derefedContent)
 			refOn = true
 		} else if refOn == true {
-			if refedContent[i] == Separator {
+			switch refedContent[i] {
+			case Separator:
 				var err error
 				if currentNegOffset, err = strconv.Atoi(string(refValue)); err != nil {
 					return nil, err
 				}
 				refValue = []rune{}
-			} else if refedContent[i] == Closing {
+			case Closing:
 				var err error
 				if currentLength, err = strconv.Atoi(string(refValue)); err != nil {
 					return nil, err
 				}
 				refOn = false
 				derefedContent = append(derefedContent, replaceRef(derefedContent, currentRefStart, currentNegOffset, currentLength)...)
-			} else {
+			default:
 				refValue = append(refValue, refedContent[i])
 			}
 		} else {

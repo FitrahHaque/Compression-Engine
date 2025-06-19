@@ -38,58 +38,58 @@ var decompressionReaderAndWriters = map[string]any{
 	"lzss":    lzss.NewDecompressionReaderAndWriter,
 }
 
-func CompressFiles(algorithms []string, files []string, fileExtension string) {
+func CompressFiles(algorithm string, files []string, fileExtension string) {
 	for _, file := range files {
-		compressFile(algorithms, file, file+fileExtension)
+		compressFile(algorithm, file, file+fileExtension)
 	}
 }
 
-func compressFile(algorithms []string, filePath string, outputFileName string) {
+func compressFile(algorithm string, filePath string, outputFileName string) {
 	fileContent, err := os.ReadFile(filePath)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("Compressing...")
-	var compressors []compression
-	for _, algorithm := range algorithms {
-		compressor := compression{
-			compressionEngine: algorithm,
-		}
-		compressor.init()
-		compressors = append(compressors, compressor)
+	compress(algorithm, fileContent, outputFileName)
+	fmt.Printf("File `%s` has been compressed into the file `%s`\n", filePath, outputFileName)
+
+}
+
+func compress(algorithm string, fileContent []byte, outputFileName string) {
+	compressor := compression{
+		compressionEngine: algorithm,
 	}
-	content := fileContent
-	for _, c := range compressors {
-		if _, err := c.writer.Write(content); err != nil {
-			panic(err)
-		}
-		if err = c.writer.Close(); err != nil {
-			panic(err)
-		}
-		if content, err = io.ReadAll(c.reader); err != nil {
-			panic(err)
-		}
-		if err = c.reader.Close(); err != nil {
-			panic(err)
-		}
+	compressor.init()
+	var content []byte
+	var err error
+	if _, err := compressor.writer.Write(fileContent); err != nil {
+		panic(err)
+	}
+	if err = compressor.writer.Close(); err != nil {
+		panic(err)
+	}
+	if content, err = io.ReadAll(compressor.reader); err != nil {
+		panic(err)
+	}
+	if err = compressor.reader.Close(); err != nil {
+		panic(err)
 	}
 	if err = os.WriteFile(outputFileName, content, 0644); err != nil {
 		panic(err)
 	}
-	fmt.Printf("File `%s` has been compressed into the file `%s`\n", filePath, outputFileName)
 	fmt.Printf("Original size (in bytes): %v\n", len(fileContent))
 	fmt.Printf("Compressed size (in bytes): %v\n", len(content))
 	fmt.Printf("Compression ratio: %.2f%%\n", float32(len(content))/float32(len(fileContent))*100)
 }
 
-func DecompressFiles(algorithms []string, files []string) {
+func DecompressFiles(algorithm string, files []string) {
 	// fmt.Printf("DecompresFiles function params: (algorithms, files): (%v, %v)\n", algorithms, files)
 	for _, file := range files {
-		decompressFile(algorithms, file)
+		decompressFile(algorithm, file)
 	}
 }
 
-func decompressFile(algorithms []string, compressedFilePath string) {
+func decompressFile(algorithm string, compressedFilePath string) {
 	// outputFileName := strings.TrimSuffix(compressedFilePath, filepath.Ext(compressedFilePath))
 	outputFileName := strings.SplitN(compressedFilePath, ".", 2)[0]
 	outputFileName = outputFileName + "-decompressed" + ".txt"
@@ -99,34 +99,32 @@ func decompressFile(algorithms []string, compressedFilePath string) {
 		panic(err)
 	}
 	fmt.Println("Decompressing...")
-	slices.Reverse(algorithms)
-	var decompressors []decompression
-	for _, algorithm := range algorithms {
-		decompressor := decompression{
-			decompressionEngine: algorithm,
-		}
-		decompressor.init()
-		decompressors = append(decompressors, decompressor)
+	decompress(algorithm, fileContent, outputFileName)
+	fmt.Printf("File `%s` has been decompressed into File `%s` into the current directory\n", compressedFilePath, outputFileName)
+}
+
+func decompress(algorithm string, fileContent []byte, outputFileName string) {
+	decompressor := decompression{
+		decompressionEngine: algorithm,
 	}
-	content := fileContent
-	for _, d := range decompressors {
-		if _, err = d.writer.Write(content); err != nil {
-			panic(err)
-		}
-		if err = d.writer.Close(); err != nil {
-			panic(err)
-		}
-		if content, err = io.ReadAll(d.reader); err != nil {
-			panic(err)
-		}
-		if err = d.reader.Close(); err != nil {
-			panic(err)
-		}
+	decompressor.init()
+	var content []byte
+	var err error
+	if _, err = decompressor.writer.Write(fileContent); err != nil {
+		panic(err)
+	}
+	if err = decompressor.writer.Close(); err != nil {
+		panic(err)
+	}
+	if content, err = io.ReadAll(decompressor.reader); err != nil {
+		panic(err)
+	}
+	if err = decompressor.reader.Close(); err != nil {
+		panic(err)
 	}
 	if err = os.WriteFile(outputFileName, content, 0666); err != nil {
 		panic(err)
 	}
-	fmt.Printf("File `%s` has been decompressed into File `%s` into the current directory\n", compressedFilePath, outputFileName)
 }
 
 func (d *decompression) init() {
@@ -157,7 +155,7 @@ func (c *compression) init() {
 		c.reader, c.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
 		return
 	case "lzss":
-		c.reader, c.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
+		c.reader, c.writer = newReaderAndWriterFunc.(func(int, int) (io.ReadCloser, io.WriteCloser))(4096, 4096)
 	default:
 		return
 	}

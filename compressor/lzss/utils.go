@@ -8,10 +8,10 @@ const (
 )
 
 type Reference struct {
-	value          []rune
-	isRef          bool
-	negativeOffset int
-	size           int
+	Value          []rune
+	IsRef          bool
+	NegativeOffset int
+	Size           int
 }
 
 var conflictingLiterals = []rune{'<', '>', ',', '\\'}

@@ -16,6 +16,8 @@ type compressionCore struct {
 	lock                sync.Mutex
 	inputBuffer         io.ReadWriter
 	outputBuffer        io.ReadWriter
+	maxMatchDistance    int
+	maxMatchLength      int
 }
 
 type CompressionWriter struct {
@@ -40,7 +42,7 @@ func (cw *CompressionWriter) Close() error {
 	if err != nil {
 		return err
 	}
-	compressedData := compress(originalData, 4096)
+	compressedData := compress(originalData, cw.core.maxMatchDistance, cw.core.maxMatchLength)
 	if _, err = cw.core.outputBuffer.Write(compressedData); err != nil {
 		return err
 	}
@@ -67,16 +69,29 @@ func (cr *CompressionReader) Close() error {
 	}
 }
 
-func NewCompressionReaderAndWriter() (io.ReadCloser, io.WriteCloser) {
+func NewCompressionReaderAndWriter(matchDistance, matchLength int) (io.ReadCloser, io.WriteCloser) {
 	newCompressionCore := new(compressionCore)
 	newCompressionCore.inputBuffer, newCompressionCore.outputBuffer = new(bytes.Buffer), new(bytes.Buffer)
 	newCompressionCore.isInputBufferClosed = false
+	newCompressionCore.maxMatchDistance = matchDistance
+	newCompressionCore.maxMatchLength = min(matchLength, matchDistance)
 	newCompressionReader, newCompressionWriter := new(CompressionReader), new(CompressionWriter)
 	newCompressionReader.core, newCompressionWriter.core = newCompressionCore, newCompressionCore
 	return newCompressionReader, newCompressionWriter
 }
 
-func compress(content []byte, maxSearchBufferLength int) []byte {
+func FindMatch(refChannels []chan Reference, content []rune, matchDistance, matchLength int) {
+	for i := range len(content) {
+		refChannels[i] = make(chan Reference, 1)
+		searchStartIdx := max(0, i-matchDistance)
+		nextEndIdx := min(len(content), i+matchLength)
+		// fmt.Printf("[ lzss - compress ] index %v\tsearchBuffer\n%v\n", i, string(content[searchStartIdx:i]))
+		// fmt.Printf("[ lzss - compress ] index %v\tpattern\n%v\n", i, string(content[i:nextEndIdx]))
+		go matchSearchBuffer(refChannels[i], content[searchStartIdx:i], []rune{content[i]}, content[i+1:nextEndIdx])
+	}
+}
+
+func compress(content []byte, matchDistance, matchLength int) []byte {
 	contentString := string(content)
 	// fmt.Printf("[ lzss - compress ] contentString:%v\n", contentString)
 	contentRune := []rune(contentString)
@@ -87,33 +102,25 @@ func compress(content []byte, maxSearchBufferLength int) []byte {
 	bar.Start()
 
 	refChannels := make([]chan Reference, len(contentRune))
-	for i := range len(contentRune) {
-		refChannels[i] = make(chan Reference, 1)
-		searchStartIdx := max(0, i-maxSearchBufferLength)
-		nextEndIdx := min(len(contentRune), i+maxSearchBufferLength-1)
-		// fmt.Printf("[ lzss - compress ] index %v\tsearchBuffer\n%v\n", i, string(content[searchStartIdx:i]))
-		// fmt.Printf("[ lzss - compress ] index %v\tpattern\n%v\n", i, string(content[i:nextEndIdx]))
-		go matchSearchBuffer(refChannels[i], contentRune[searchStartIdx:i], []rune{contentRune[i]}, contentRune[i+1:nextEndIdx])
-	}
-
+	FindMatch(refChannels, contentRune, matchDistance, matchLength)
 	var compressedContentRune []rune
-	nextBytesToIgnore := 0
+	nextRunesToIgnore := 0
 	for _, channel := range refChannels {
 		ref := <-channel
-		if nextBytesToIgnore > 0 {
-			nextBytesToIgnore--
-		} else if ref.isRef {
+		if nextRunesToIgnore > 0 {
+			nextRunesToIgnore--
+		} else if ref.IsRef {
 			// fmt.Printf("[ lzss - compress ] isRef at index %v for content: %v\n", i, string(ref.value))
-			encoding := getSymbolEncoded(ref.negativeOffset, ref.size)
-			if len(encoding) < ref.size {
+			encoding := getSymbolEncoded(ref.NegativeOffset, ref.Size)
+			if len(encoding) < ref.Size {
 				compressedContentRune = append(compressedContentRune, encoding...)
-				nextBytesToIgnore = ref.size - 1
+				nextRunesToIgnore = ref.Size - 1
 			} else {
 				// fmt.Printf("[ lzss - compress ] ref not used at index: %v, content at loc: %v\n", i, string(ref.value[0]))
-				compressedContentRune = append(compressedContentRune, ref.value[0])
+				compressedContentRune = append(compressedContentRune, ref.Value[0])
 			}
 		} else {
-			compressedContentRune = append(compressedContentRune, ref.value...)
+			compressedContentRune = append(compressedContentRune, ref.Value...)
 		}
 		bar.Increment()
 	}
@@ -159,21 +166,21 @@ func kmp(searchBuffer []rune, pattern []rune) (int, int) {
 	return best, bestIndex
 }
 
-func matchSearchBuffer(refChannel chan<- Reference, searchBuffer []rune, scanBytes []rune, nextBytes []rune) {
-	pattern := append(scanBytes, nextBytes...)
+func matchSearchBuffer(refChannel chan<- Reference, searchBuffer []rune, scanRunes []rune, nextRunes []rune) {
+	pattern := append(scanRunes, nextRunes...)
 	// fmt.Printf("[ lzss - matchSearchBuffer ] searchBuffer\n%v\n", string(searchBuffer))
 	// fmt.Printf("[ lzss - matchSearchBuffer ] pattern\n%v\n", string(pattern))
 	matchedLength, matchedAt := kmp(searchBuffer, pattern)
 	var ref Reference
 	if matchedLength > 1 {
-		ref.isRef = true
-		ref.value = pattern[:matchedLength]
-		ref.size = matchedLength
-		ref.negativeOffset = len(searchBuffer) - matchedAt
+		ref.IsRef = true
+		ref.Value = pattern[:matchedLength]
+		ref.Size = matchedLength
+		ref.NegativeOffset = len(searchBuffer) - matchedAt
 	} else {
-		ref.isRef = false
-		ref.value = scanBytes
-		ref.size = len(scanBytes)
+		ref.IsRef = false
+		ref.Value = scanRunes
+		ref.Size = len(scanRunes)
 	}
 	refChannel <- ref
 }

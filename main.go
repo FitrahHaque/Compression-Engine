@@ -63,7 +63,6 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Valid commands include:\n\t%s\n", strings.Join([]string{"algorithm, delete, outfileext, help"}, ", "))
 			fmt.Fprintf(os.Stderr, "Flag:\n")
 			compressFS.PrintDefaults()
-			return
 		}
 		algorithmCompress := compressFS.String("algorithm", "huffman", fmt.Sprintf("Which algorithm(s) to use, choices include: \n\t%s", strings.Join(engine.Engines[:], ", ")))
 		deleteAfterCompress := compressFS.Bool("delete", false, "Delete file after compression")
@@ -115,9 +114,10 @@ func main() {
 		}
 		files := strings.Split(fileName, ",")
 		trimSpace(files)
-		algorithmsChosen := strings.Split(*algorithmCompress, ",")
-		trimSpace(algorithmsChosen)
-		engine.CompressFiles(algorithmsChosen, files, *outputFileExtensionCompress)
+		// algorithmsChosen := strings.Split(*algorithmCompress, ",")
+		// trimSpace(algorithmsChosen)
+		// engine.CompressFiles(algorithmsChosen, files, *outputFileExtensionCompress)
+		engine.CompressFiles(*algorithmCompress, files, *outputFileExtensionCompress)
 		if *deleteAfterCompress {
 			deleteFiles(files)
 		}
@@ -129,7 +129,6 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Valid commands include:\n\t%s\n", strings.Join([]string{"algorithm, delete, help"}, ", "))
 			fmt.Fprintf(os.Stderr, "Flag:\n")
 			decompressFS.PrintDefaults()
-			return
 		}
 		deleteAfterDecompress := decompressFS.Bool("delete", false, "Delete compression file after decompression")
 		algorithmDecompress := decompressFS.String("algorithm", "huffman", fmt.Sprintf("Which algorithm(s) to use, choices include: \n\t%s", strings.Join(engine.Engines[:], ", ")))
@@ -179,9 +178,10 @@ func main() {
 		}
 		files := strings.Split(fileName, ",")
 		trimSpace(files)
-		algorithmsChosen := strings.Split(*algorithmDecompress, ",")
-		trimSpace(algorithmsChosen)
-		engine.DecompressFiles(algorithmsChosen, files)
+		// algorithmsChosen := strings.Split(*algorithmDecompress, ",")
+		// trimSpace(algorithmsChosen)
+		// engine.DecompressFiles(algorithmsChosen, files)
+		engine.DecompressFiles(*algorithmDecompress, files)
 		if *deleteAfterDecompress {
 			deleteFiles(files)
 		}
