@@ -23,6 +23,7 @@ type DistanceAlphabets struct {
 		extraBits    int
 		baseDistance int
 	}
+	canonicalCode []huffman.CanonicalHuffmanCode
 }
 
 type LengthAlphabets struct {
@@ -30,6 +31,7 @@ type LengthAlphabets struct {
 		extraBits  int
 		baseLength int
 	}
+	canonicalCode []huffman.CanonicalHuffmanCode
 }
 
 type AlphabetCode interface {
@@ -78,7 +80,8 @@ type compressionCore struct {
 	lock                sync.Mutex
 	inputBuffer         io.ReadWriter
 	outputBuffer        io.ReadWriter
-	btype               int
+	btype               uint32
+	bfinal              uint32
 }
 
 func (cr *CompressionReader) Read(data []byte) (int, error) {
@@ -95,6 +98,7 @@ func (cr *CompressionReader) Close() error {
 	defer cr.core.lock.Unlock()
 	if buf, ok := cr.core.inputBuffer.(*bytes.Buffer); ok {
 		buf.Reset()
+		cr.core.isInputBufferClosed = false
 		return nil
 	} else {
 		return errors.New("underlying io.ReadWriter is not *bytes.Buffer. Type assertion failed")
@@ -104,33 +108,30 @@ func (cr *CompressionReader) Close() error {
 func (cw *CompressionWriter) Write(data []byte) (int, error) {
 	cw.core.lock.Lock()
 	defer cw.core.lock.Unlock()
+	if cw.core.isInputBufferClosed {
+		return 0, errors.New("reading from the compression stream for the previous block has not completed yet!")
+	}
 	return cw.core.inputBuffer.Write(data)
 }
 
 func (cw *CompressionWriter) Close() error {
 	cw.core.lock.Lock()
-	defer cw.core.lock.Unlock()
 	cw.core.isInputBufferClosed = true
 	originalData, err := io.ReadAll(cw.core.inputBuffer)
+	cw.core.lock.Unlock()
 	// fmt.Printf("[ DecompressionWriter.Close ] compressedData: %v\n", compressedData)
 	if err != nil {
 		return err
 	}
-	compressedData, err := compress(originalData)
-	if err != nil {
-		return err
-	}
-	if _, err = cw.core.outputBuffer.Write(compressedData); err != nil {
-		return err
-	}
-	return nil
+	return cw.compress(originalData)
 }
 
-func NewCompressionReaderAndWriter(btype int) (io.ReadCloser, io.WriteCloser) {
+func NewCompressionReaderAndWriter(btype uint32, bfinal uint32) (io.ReadCloser, io.WriteCloser) {
 	newCompressionCore := new(compressionCore)
 	newCompressionCore.inputBuffer, newCompressionCore.outputBuffer = new(bytes.Buffer), new(bytes.Buffer)
 	newCompressionCore.isInputBufferClosed = false
 	newCompressionCore.btype = btype
+	newCompressionCore.bfinal = bfinal
 	newCompressionReader, newCompressionWriter := new(CompressionReader), new(CompressionWriter)
 	newCompressionReader.core, newCompressionWriter.core = newCompressionCore, newCompressionCore
 	return newCompressionReader, newCompressionWriter
@@ -149,7 +150,7 @@ func (da *DistanceAlphabets) FindCode(value int) (code int, offset int, err erro
 	return 0, 0, fmt.Errorf("no distance code found for the distance value %v\n", value)
 }
 
-func (da *DistanceAlphabets) Encode(items interface{}) (map[int]huffman.CanonicalHuffmanCode, error) {
+func (da *DistanceAlphabets) Encode(items interface{}) ([]int, error) {
 	tokens, ok := items.([]Token)
 	if !ok {
 		return nil, errors.New("distance huffman tree cannot be generated without the type of Token slice")
@@ -165,9 +166,15 @@ func (da *DistanceAlphabets) Encode(items interface{}) (map[int]huffman.Canonica
 			}
 		}
 	}
+	if distHuffmanCode, err := huffman.BuildCanonicalHuffmanTree(symbolFreq, 15); err != nil {
+		return nil, err
+	} else {
+		da.canonicalCode = distHuffmanCode
+		return findLengthBoundary(distHuffmanCode, 0), nil
+	}
 }
 
-func (la *LengthAlphabets) Encode(items interface{}) (map[int]huffman.CanonicalHuffmanCode, error) {
+func (la *LengthAlphabets) Encode(items interface{}) ([]int, error) {
 	tokens, ok := items.([]Token)
 	if !ok {
 		return nil, errors.New("length huffman code cannot be generated without the type of Token slice")
@@ -186,8 +193,12 @@ func (la *LengthAlphabets) Encode(items interface{}) (map[int]huffman.CanonicalH
 		}
 	}
 	symbolFreq[256]++
-	huffman.BuildCanonicalHuffmanTree(symbolFreq)
-
+	if litLenHuffmanCode, err := huffman.BuildCanonicalHuffmanTree(symbolFreq, 15); err != nil {
+		return nil, err
+	} else {
+		la.canonicalCode = litLenHuffmanCode
+		return findLengthBoundary(litLenHuffmanCode, 256), nil
+	}
 }
 
 func (la *LengthAlphabets) FindCode(value int) (code int, offset int, err error) {
@@ -203,22 +214,31 @@ func (la *LengthAlphabets) FindCode(value int) (code int, offset int, err error)
 	return 0, 0, fmt.Errorf("no length code found for the length value %v\n", value)
 }
 
-func compress(content []byte) ([]byte, error) {
+func (cw *CompressionWriter) compress(content []byte) error {
 	contentRune := []rune(string(content))
 	refChannels := make([]chan lzss.Reference, len(contentRune))
 	lzss.FindMatch(refChannels, contentRune, maxAllowedBackwardDistance, maxAllowedMatchLength)
 	tokens, err := tokeniseLZSS(refChannels)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	litLenHuffmanCodes, err := lenAlphabets.Encode(tokens)
+	litLenHuffmanCodeLengths, err := lenAlphabets.Encode(tokens)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	distHuffmanCodes, err := distAlphabets.Encode(tokens)
+	distHuffmanCodeLengths, err := distAlphabets.Encode(tokens)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	cw.core.lock.Lock()
+	defer cw.core.lock.Unlock()
+	writeCompressedContent(cw.Write, cw.core.bfinal, 1)
+	writeCompressedContent(cw.Write, cw.core.btype, 2)
+	HLIT := len(litLenHuffmanCodeLengths) - 257
+	HDIST := len(distHuffmanCodeLengths) - 1
+	writeCompressedContent(cw.core.outputBuffer.Write, uint32(HLIT), 5)
+	writeCompressedContent(cw.Write, uint32(HDIST), 5)
+	concatenatedHuffmanCodeLengths := append(litLenHuffmanCodeLengths, distHuffmanCodeLengths...)
 
 }
 
@@ -258,4 +278,19 @@ func tokeniseLZSS(refChannels []chan lzss.Reference) ([]Token, error) {
 		}
 	}
 	return tokens, nil
+}
+
+func findLengthBoundary(items []huffman.CanonicalHuffmanCode, threshold int) []int {
+	var length []int
+	for i, info := range items {
+		if i > threshold && info.Length == 0 {
+			continue
+		}
+		length = append(length, info.Length)
+	}
+	return length
+}
+
+func writeCompressedContent(outputBufferWriter func([]byte) (int, error), value uint32, nbits uint) error {
+
 }

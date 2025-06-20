@@ -2,7 +2,9 @@ package huffman
 
 import (
 	"container/heap"
+	"errors"
 	"slices"
+	"sort"
 )
 
 type bitString string
@@ -102,6 +104,64 @@ func buildTree(symbolFreq map[rune]int) huffmanTree {
 	return heap.Pop(&treehub).(huffmanTree)
 }
 
-func BuildCanonicalHuffmanTree(symbolFreq []int) []CanonicalHuffmanCode {
-
+func BuildCanonicalHuffmanTree(symbolFreq []int, lengthLimit int) ([]CanonicalHuffmanCode, error) {
+	symbolFreqMap := make(map[int32]int, len(symbolFreq))
+	for symbol, freq := range symbolFreq {
+		symbolFreqMap[int32(symbol)] = freq
+	}
+	lengths := make([]int, len(symbolFreq))
+	root := buildTree(symbolFreqMap)
+	var dfs func(huffmanTree, int)
+	dfs = func(tree huffmanTree, len int) {
+		switch node := tree.(type) {
+		case huffmanLeaf:
+			lengths[node.symbol] = len
+			return
+		case huffmanNode:
+			dfs(node.left, len+1)
+			dfs(node.right, len+1)
+			return
+		}
+	}
+	dfs(root, 0)
+	maxLength := 0
+	for _, length := range lengths {
+		maxLength = max(maxLength, length)
+	}
+	if maxLength > lengthLimit {
+		return nil, errors.New("tree is longer than limit")
+	}
+	lengthCounts := make([]int, maxLength+1)
+	var order []struct{ symbol, length int }
+	for symbol, length := range lengths {
+		order = append(order, struct {
+			symbol int
+			length int
+		}{symbol: symbol, length: length})
+		lengthCounts[length]++
+	}
+	sort.Slice(order, func(i, j int) bool {
+		if order[i].length == order[j].length {
+			return order[i].symbol < order[j].symbol
+		}
+		return order[i].length < order[j].length
+	})
+	nextBaseCode := make([]int, maxLength+1)
+	code := 0
+	for i := 1; i < len(lengthCounts); i++ {
+		code = (code + lengthCounts[i-1]) << 1
+		nextBaseCode[i] = code
+	}
+	output := make([]CanonicalHuffmanCode, len(symbolFreq))
+	for _, info := range order {
+		if info.length == 0 {
+			continue
+		}
+		output[info.symbol] = CanonicalHuffmanCode{
+			Code:   nextBaseCode[info.length],
+			Length: info.length,
+		}
+		nextBaseCode[info.length]++
+	}
+	return output, nil
 }
