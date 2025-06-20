@@ -7,6 +7,10 @@ import (
 
 type bitString string
 
+type CanonicalHuffmanCode struct {
+	Code   int
+	Length int
+}
 type huffmanTree interface {
 	getFrequency() int
 	getId() int
@@ -96,4 +100,8 @@ func buildTree(symbolFreq map[rune]int) huffmanTree {
 		monoId++
 	}
 	return heap.Pop(&treehub).(huffmanTree)
+}
+
+func BuildCanonicalHuffmanTree(symbolFreq []int) []CanonicalHuffmanCode {
+
 }

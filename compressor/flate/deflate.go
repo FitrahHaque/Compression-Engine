@@ -7,6 +7,7 @@ import (
 	"io"
 	"sync"
 
+	"github.com/FitrahHaque/Compression-Engine/compressor/huffman"
 	"github.com/FitrahHaque/Compression-Engine/compressor/lzss"
 )
 
@@ -17,31 +18,52 @@ const (
 	MatchToken
 )
 
-type distanceAlphabet struct {
-	extraBits    int
-	baseDistance int
+type DistanceAlphabets struct {
+	alphabets []struct {
+		extraBits    int
+		baseDistance int
+	}
 }
 
-type litLenAlphabet struct {
-	extraBits  int
-	baseLength int
+type LengthAlphabets struct {
+	alphabets map[int]struct {
+		extraBits  int
+		baseLength int
+	}
+}
+
+type AlphabetCode interface {
+	FindCode(value int) (int, int, error)
+	Encode(items interface{}) (map[int]huffman.CanonicalHuffmanCode, error)
 }
 
 type Token struct {
-	Kind     TokenKind
-	Value    byte
-	Length   int
-	Distance int
+	Kind           TokenKind
+	Value          byte
+	Length         int
+	Distance       int
+	DistanceCode   int
+	DistanceOffset int
+	LengthCode     int
+	LengthOffset   int
 }
 
 var maxAllowedBackwardDistance int = 32768
 var maxAllowedMatchLength int = 258
-var litLenAlphabets = map[int]litLenAlphabet{
-	257: {extraBits: 0, baseLength: 3}, 258: {extraBits: 0, baseLength: 4}, 259: {extraBits: 0, baseLength: 5}, 260: {extraBits: 0, baseLength: 6}, 261: {extraBits: 0, baseLength: 7}, 262: {extraBits: 0, baseLength: 8}, 263: {extraBits: 0, baseLength: 9}, 264: {extraBits: 0, baseLength: 10}, 265: {extraBits: 1, baseLength: 11}, 266: {extraBits: 1, baseLength: 13}, 267: {extraBits: 1, baseLength: 15}, 268: {extraBits: 1, baseLength: 17}, 269: {extraBits: 2, baseLength: 19}, 270: {extraBits: 2, baseLength: 23}, 271: {extraBits: 2, baseLength: 27}, 272: {extraBits: 3, baseLength: 31}, 273: {extraBits: 3, baseLength: 35}, 274: {extraBits: 3, baseLength: 43}, 275: {extraBits: 3, baseLength: 51}, 276: {extraBits: 3, baseLength: 59}, 277: {extraBits: 4}, 278: {extraBits: 4, baseLength: 83}, 279: {extraBits: 4, baseLength: 99}, 280: {extraBits: 4, baseLength: 115}, 281: {extraBits: 5, baseLength: 131}, 282: {extraBits: 5, baseLength: 163}, 283: {extraBits: 5, baseLength: 195}, 284: {extraBits: 5, baseLength: 227}, 285: {extraBits: 0, baseLength: 258},
+var lenAlphabets = LengthAlphabets{
+	alphabets: map[int]struct {
+		extraBits  int
+		baseLength int
+	}{
+		257: {extraBits: 0, baseLength: 3}, 258: {extraBits: 0, baseLength: 4}, 259: {extraBits: 0, baseLength: 5}, 260: {extraBits: 0, baseLength: 6}, 261: {extraBits: 0, baseLength: 7}, 262: {extraBits: 0, baseLength: 8}, 263: {extraBits: 0, baseLength: 9}, 264: {extraBits: 0, baseLength: 10}, 265: {extraBits: 1, baseLength: 11}, 266: {extraBits: 1, baseLength: 13}, 267: {extraBits: 1, baseLength: 15}, 268: {extraBits: 1, baseLength: 17}, 269: {extraBits: 2, baseLength: 19}, 270: {extraBits: 2, baseLength: 23}, 271: {extraBits: 2, baseLength: 27}, 272: {extraBits: 3, baseLength: 31}, 273: {extraBits: 3, baseLength: 35}, 274: {extraBits: 3, baseLength: 43}, 275: {extraBits: 3, baseLength: 51}, 276: {extraBits: 3, baseLength: 59}, 277: {extraBits: 4}, 278: {extraBits: 4, baseLength: 83}, 279: {extraBits: 4, baseLength: 99}, 280: {extraBits: 4, baseLength: 115}, 281: {extraBits: 5, baseLength: 131}, 282: {extraBits: 5, baseLength: 163}, 283: {extraBits: 5, baseLength: 195}, 284: {extraBits: 5, baseLength: 227}, 285: {extraBits: 0, baseLength: 258}},
 }
 
-var distAlphabets = []distanceAlphabet{
-	{extraBits: 0, baseDistance: 1}, {extraBits: 0, baseDistance: 2}, {extraBits: 0, baseDistance: 3}, {extraBits: 0, baseDistance: 4}, {extraBits: 1, baseDistance: 5}, {extraBits: 1, baseDistance: 7}, {extraBits: 2, baseDistance: 9}, {extraBits: 2, baseDistance: 13}, {extraBits: 3, baseDistance: 17}, {extraBits: 3, baseDistance: 25}, {extraBits: 4, baseDistance: 33}, {extraBits: 4, baseDistance: 49}, {extraBits: 5, baseDistance: 65}, {extraBits: 5, baseDistance: 97}, {extraBits: 6, baseDistance: 129}, {extraBits: 6, baseDistance: 193}, {extraBits: 7, baseDistance: 257}, {extraBits: 7, baseDistance: 385}, {extraBits: 8, baseDistance: 513}, {extraBits: 8, baseDistance: 769}, {extraBits: 9, baseDistance: 1025}, {extraBits: 9, baseDistance: 1537}, {extraBits: 10, baseDistance: 2049}, {extraBits: 10, baseDistance: 3073}, {extraBits: 11, baseDistance: 4097}, {extraBits: 11, baseDistance: 6145}, {extraBits: 12, baseDistance: 8193}, {extraBits: 12, baseDistance: 12289}, {extraBits: 13, baseDistance: 16385}, {extraBits: 13, baseDistance: 24577},
+var distAlphabets = DistanceAlphabets{
+	alphabets: []struct {
+		extraBits    int
+		baseDistance int
+	}{
+		{extraBits: 0, baseDistance: 1}, {extraBits: 0, baseDistance: 2}, {extraBits: 0, baseDistance: 3}, {extraBits: 0, baseDistance: 4}, {extraBits: 1, baseDistance: 5}, {extraBits: 1, baseDistance: 7}, {extraBits: 2, baseDistance: 9}, {extraBits: 2, baseDistance: 13}, {extraBits: 3, baseDistance: 17}, {extraBits: 3, baseDistance: 25}, {extraBits: 4, baseDistance: 33}, {extraBits: 4, baseDistance: 49}, {extraBits: 5, baseDistance: 65}, {extraBits: 5, baseDistance: 97}, {extraBits: 6, baseDistance: 129}, {extraBits: 6, baseDistance: 193}, {extraBits: 7, baseDistance: 257}, {extraBits: 7, baseDistance: 385}, {extraBits: 8, baseDistance: 513}, {extraBits: 8, baseDistance: 769}, {extraBits: 9, baseDistance: 1025}, {extraBits: 9, baseDistance: 1537}, {extraBits: 10, baseDistance: 2049}, {extraBits: 10, baseDistance: 3073}, {extraBits: 11, baseDistance: 4097}, {extraBits: 11, baseDistance: 6145}, {extraBits: 12, baseDistance: 8193}, {extraBits: 12, baseDistance: 12289}, {extraBits: 13, baseDistance: 16385}, {extraBits: 13, baseDistance: 24577}},
 }
 
 type CompressionWriter struct {
@@ -114,6 +136,73 @@ func NewCompressionReaderAndWriter(btype int) (io.ReadCloser, io.WriteCloser) {
 	return newCompressionReader, newCompressionWriter
 }
 
+func (da *DistanceAlphabets) FindCode(value int) (code int, offset int, err error) {
+	if value < 1 || value > maxAllowedBackwardDistance {
+		return 0, 0, errors.New("value is out of range to have a match with RFC distance code")
+	}
+	for i, info := range da.alphabets {
+		if value >= info.baseDistance && (i+1 == len(da.alphabets) || value < da.alphabets[i+1].baseDistance) {
+			offset := value - info.baseDistance
+			return i, offset, nil
+		}
+	}
+	return 0, 0, fmt.Errorf("no distance code found for the distance value %v\n", value)
+}
+
+func (da *DistanceAlphabets) Encode(items interface{}) (map[int]huffman.CanonicalHuffmanCode, error) {
+	tokens, ok := items.([]Token)
+	if !ok {
+		return nil, errors.New("distance huffman tree cannot be generated without the type of Token slice")
+	}
+	symbolFreq := make([]int, 30)
+	for _, token := range tokens {
+		if token.Kind == MatchToken {
+			if code, offset, err := da.FindCode(token.Distance); err != nil {
+				return nil, err
+			} else {
+				token.DistanceCode, token.DistanceOffset = code, offset
+				symbolFreq[token.DistanceCode]++
+			}
+		}
+	}
+}
+
+func (la *LengthAlphabets) Encode(items interface{}) (map[int]huffman.CanonicalHuffmanCode, error) {
+	tokens, ok := items.([]Token)
+	if !ok {
+		return nil, errors.New("length huffman code cannot be generated without the type of Token slice")
+	}
+	symbolFreq := make([]int, 286)
+	for _, token := range tokens {
+		if token.Kind == LiteralToken {
+			symbolFreq[token.Value]++
+		} else {
+			if code, offset, err := la.FindCode(token.Length); err != nil {
+				return nil, err
+			} else {
+				token.LengthCode, token.LengthOffset = code, offset
+				symbolFreq[token.LengthCode]++
+			}
+		}
+	}
+	symbolFreq[256]++
+	huffman.BuildCanonicalHuffmanTree(symbolFreq)
+
+}
+
+func (la *LengthAlphabets) FindCode(value int) (code int, offset int, err error) {
+	if value < 3 || value > maxAllowedMatchLength {
+		return 0, 0, errors.New("value is out of range to have a match with RFC length code")
+	}
+	for key, info := range la.alphabets {
+		if nextInfo, ok := la.alphabets[key+1]; value >= info.baseLength && (!ok || value < nextInfo.baseLength) {
+			offset := value - info.baseLength
+			return key, offset, nil
+		}
+	}
+	return 0, 0, fmt.Errorf("no length code found for the length value %v\n", value)
+}
+
 func compress(content []byte) ([]byte, error) {
 	contentRune := []rune(string(content))
 	refChannels := make([]chan lzss.Reference, len(contentRune))
@@ -122,7 +211,15 @@ func compress(content []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nil, nil
+	litLenHuffmanCodes, err := lenAlphabets.Encode(tokens)
+	if err != nil {
+		return nil, err
+	}
+	distHuffmanCodes, err := distAlphabets.Encode(tokens)
+	if err != nil {
+		return nil, err
+	}
+
 }
 
 func tokeniseLZSS(refChannels []chan lzss.Reference) ([]Token, error) {
