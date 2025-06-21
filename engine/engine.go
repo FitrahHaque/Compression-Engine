@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/FitrahHaque/Compression-Engine/compressor/flate"
 	"github.com/FitrahHaque/Compression-Engine/compressor/huffman"
 	"github.com/FitrahHaque/Compression-Engine/compressor/lzss"
 )
@@ -14,6 +15,7 @@ import (
 var Engines = [...]string{
 	"huffman",
 	"lzss",
+	"flate",
 }
 
 type compression struct {
@@ -31,6 +33,7 @@ type decompression struct {
 var compressionReaderAndWriters = map[string]any{
 	"huffman": huffman.NewCompressionReaderAndWriter,
 	"lzss":    lzss.NewCompressionReaderAndWriter,
+	"flate":   flate.NewCompressionReaderAndWriter,
 }
 
 var decompressionReaderAndWriters = map[string]any{
@@ -38,28 +41,28 @@ var decompressionReaderAndWriters = map[string]any{
 	"lzss":    lzss.NewDecompressionReaderAndWriter,
 }
 
-func CompressFiles(algorithm string, files []string, fileExtension string) {
+func CompressFiles(algorithm string, files []string, fileExtension string, args any) {
 	for _, file := range files {
-		compressFile(algorithm, file, file+fileExtension)
+		compressFile(algorithm, file, file+fileExtension, args)
 	}
 }
 
-func compressFile(algorithm string, filePath string, outputFileName string) {
+func compressFile(algorithm string, filePath string, outputFileName string, args any) {
 	fileContent, err := os.ReadFile(filePath)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("Compressing...")
-	compress(algorithm, fileContent, outputFileName)
+	compress(algorithm, fileContent, outputFileName, args)
 	fmt.Printf("File `%s` has been compressed into the file `%s`\n", filePath, outputFileName)
 
 }
 
-func compress(algorithm string, fileContent []byte, outputFileName string) {
+func compress(algorithm string, fileContent []byte, outputFileName string, args any) {
 	compressor := compression{
 		compressionEngine: algorithm,
 	}
-	compressor.init()
+	compressor.init(args)
 	var content []byte
 	var err error
 	if _, err := compressor.writer.Write(fileContent); err != nil {
@@ -80,6 +83,32 @@ func compress(algorithm string, fileContent []byte, outputFileName string) {
 	fmt.Printf("Original size (in bytes): %v\n", len(fileContent))
 	fmt.Printf("Compressed size (in bytes): %v\n", len(content))
 	fmt.Printf("Compression ratio: %.2f%%\n", float32(len(content))/float32(len(fileContent))*100)
+}
+
+func (c *compression) init(params any) {
+	if !slices.Contains(Engines[:], c.compressionEngine) {
+		fmt.Println("compression engine does not exist")
+		os.Exit(1)
+	}
+	newReaderAndWriterFunc := compressionReaderAndWriters[c.compressionEngine]
+	switch c.compressionEngine {
+	case "huffman":
+		c.reader, c.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
+		return
+	case "lzss":
+		c.reader, c.writer = newReaderAndWriterFunc.(func(int, int) (io.ReadCloser, io.WriteCloser))(4096, 4096)
+	case "flate":
+		if args, ok := params.(struct {
+			btype  int
+			bfinal int
+		}); !ok {
+			panic("arguments missing for flate")
+		} else {
+			c.reader, c.writer = newReaderAndWriterFunc.(func(int, int) (io.ReadCloser, io.WriteCloser))(args.btype, args.bfinal)
+		}
+	default:
+		return
+	}
 }
 
 func DecompressFiles(algorithm string, files []string) {
@@ -139,23 +168,6 @@ func (d *decompression) init() {
 		return
 	case "lzss":
 		d.reader, d.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
-	default:
-		return
-	}
-}
-
-func (c *compression) init() {
-	if !slices.Contains(Engines[:], c.compressionEngine) {
-		fmt.Println("compression engine does not exist")
-		os.Exit(1)
-	}
-	newReaderAndWriterFunc := compressionReaderAndWriters[c.compressionEngine]
-	switch c.compressionEngine {
-	case "huffman":
-		c.reader, c.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
-		return
-	case "lzss":
-		c.reader, c.writer = newReaderAndWriterFunc.(func(int, int) (io.ReadCloser, io.WriteCloser))(4096, 4096)
 	default:
 		return
 	}

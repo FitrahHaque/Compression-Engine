@@ -47,15 +47,15 @@ type DistanceCode struct {
 	DistanceHuffman []huffman.CanonicalHuffmanCode
 }
 type CodeLengthCode struct {
-	LengthEncoded []struct {
+	HuffmanLengthCondensed []struct {
 		RLECode int
 		Offset  int
 	}
-	CodeLengthHuffman []huffman.CanonicalHuffmanCode
+	CondensedHuffman []huffman.CanonicalHuffmanCode
 }
 type AlphabetCode interface {
 	FindCode(value int) (int, int, error)
-	Encode(items interface{}) ([]int, error)
+	Encode(items any) ([]int, error)
 }
 
 type Token struct {
@@ -110,9 +110,9 @@ type CompressionReader struct {
 	core *compressionCore
 }
 type bitBuffer struct {
-	output    io.ReadWriter
-	bitHolder uint32
-	bitCount  uint
+	output     io.ReadWriter
+	bitsHolder uint32
+	bitsCount  uint
 }
 
 type compressionCore struct {
@@ -192,13 +192,14 @@ func (dc *DistanceCode) FindCode(value int) (code int, offset int, err error) {
 	return 0, 0, fmt.Errorf("no distance code found for the distance value %v\n", value)
 }
 
-func (dc *DistanceCode) Encode(items interface{}) ([]int, error) {
+func (dc *DistanceCode) Encode(items any) ([]int, error) {
 	tokens, ok := items.([]Token)
 	if !ok {
 		return nil, errors.New("distance huffman tree cannot be generated without the type of Token slice")
 	}
 	symbolFreq := make([]int, 30)
-	for _, token := range tokens {
+	for i := range tokens {
+		token := &tokens[i]
 		if token.Kind == MatchToken {
 			if code, offset, err := dc.FindCode(token.Distance); err != nil {
 				return nil, err
@@ -229,13 +230,14 @@ func (llc *LitLengthCode) FindCode(value int) (code int, offset int, err error) 
 	return 0, 0, fmt.Errorf("no length code found for the length value %v\n", value)
 }
 
-func (llc *LitLengthCode) Encode(items interface{}) ([]int, error) {
+func (llc *LitLengthCode) Encode(items any) ([]int, error) {
 	tokens, ok := items.([]Token)
 	if !ok {
 		return nil, errors.New("length huffman code cannot be generated without the type of Token slice")
 	}
 	symbolFreq := make([]int, 286)
-	for _, token := range tokens {
+	for i := range tokens {
+		token := &tokens[i]
 		if token.Kind == LiteralToken {
 			symbolFreq[token.Value]++
 		} else {
@@ -261,8 +263,8 @@ func (clc *CodeLengthCode) FindCode(lengthHuffmanLengths []int) (err error) {
 	resolveCountZero := func() error {
 		if countZero != 0 {
 			if countZero < 3 {
-				for _ = range countZero {
-					clc.LengthEncoded = append(clc.LengthEncoded, struct {
+				for range countZero {
+					clc.HuffmanLengthCondensed = append(clc.HuffmanLengthCondensed, struct {
 						RLECode int
 						Offset  int
 					}{
@@ -271,7 +273,7 @@ func (clc *CodeLengthCode) FindCode(lengthHuffmanLengths []int) (err error) {
 					})
 				}
 			} else if countZero < 11 {
-				clc.LengthEncoded = append(clc.LengthEncoded, struct {
+				clc.HuffmanLengthCondensed = append(clc.HuffmanLengthCondensed, struct {
 					RLECode int
 					Offset  int
 				}{
@@ -279,7 +281,7 @@ func (clc *CodeLengthCode) FindCode(lengthHuffmanLengths []int) (err error) {
 					Offset:  countZero - 3,
 				})
 			} else if countZero < 138 {
-				clc.LengthEncoded = append(clc.LengthEncoded, struct {
+				clc.HuffmanLengthCondensed = append(clc.HuffmanLengthCondensed, struct {
 					RLECode int
 					Offset  int
 				}{
@@ -295,8 +297,8 @@ func (clc *CodeLengthCode) FindCode(lengthHuffmanLengths []int) (err error) {
 	resolveCountSame := func(prevIndex int) error {
 		if countSame != 0 {
 			if countSame < 3 {
-				for _ = range countSame {
-					clc.LengthEncoded = append(clc.LengthEncoded, struct {
+				for range countSame {
+					clc.HuffmanLengthCondensed = append(clc.HuffmanLengthCondensed, struct {
 						RLECode int
 						Offset  int
 					}{
@@ -305,7 +307,7 @@ func (clc *CodeLengthCode) FindCode(lengthHuffmanLengths []int) (err error) {
 					})
 				}
 			} else if countSame < 6 {
-				clc.LengthEncoded = append(clc.LengthEncoded, struct {
+				clc.HuffmanLengthCondensed = append(clc.HuffmanLengthCondensed, struct {
 					RLECode int
 					Offset  int
 				}{
@@ -326,7 +328,7 @@ func (clc *CodeLengthCode) FindCode(lengthHuffmanLengths []int) (err error) {
 			}
 			countZero++
 			if countZero == 138 {
-				clc.LengthEncoded = append(clc.LengthEncoded, struct {
+				clc.HuffmanLengthCondensed = append(clc.HuffmanLengthCondensed, struct {
 					RLECode int
 					Offset  int
 				}{
@@ -342,7 +344,7 @@ func (clc *CodeLengthCode) FindCode(lengthHuffmanLengths []int) (err error) {
 			if err := resolveCountSame(i - 1); err != nil {
 				return err
 			}
-			clc.LengthEncoded = append(clc.LengthEncoded, struct {
+			clc.HuffmanLengthCondensed = append(clc.HuffmanLengthCondensed, struct {
 				RLECode int
 				Offset  int
 			}{
@@ -352,7 +354,7 @@ func (clc *CodeLengthCode) FindCode(lengthHuffmanLengths []int) (err error) {
 		} else {
 			countSame++
 			if countSame == 6 {
-				clc.LengthEncoded = append(clc.LengthEncoded, struct {
+				clc.HuffmanLengthCondensed = append(clc.HuffmanLengthCondensed, struct {
 					RLECode int
 					Offset  int
 				}{
@@ -372,7 +374,7 @@ func (clc *CodeLengthCode) FindCode(lengthHuffmanLengths []int) (err error) {
 	return nil
 }
 
-func (clc *CodeLengthCode) Encode(items interface{}) ([]int, error) {
+func (clc *CodeLengthCode) Encode(items any) ([]int, error) {
 	lengthHuffmanLengths, ok := items.([]int)
 	if !ok {
 		return nil, errors.New("code-length huffman code cannot be generated without the type of int slice")
@@ -381,14 +383,14 @@ func (clc *CodeLengthCode) Encode(items interface{}) ([]int, error) {
 		return nil, err
 	}
 	symbolFreq := make([]int, 19)
-	for _, info := range clc.LengthEncoded {
+	for _, info := range clc.HuffmanLengthCondensed {
 		symbolFreq[info.RLECode]++
 	}
 	if codeLengthHuffmanCode, err := huffman.BuildCanonicalHuffmanTree(symbolFreq, 3); err != nil {
 		return nil, err
 	} else {
-		clc.CodeLengthHuffman = make([]huffman.CanonicalHuffmanCode, len(codeLengthHuffmanCode))
-		copy(clc.CodeLengthHuffman, codeLengthHuffmanCode)
+		clc.CondensedHuffman = make([]huffman.CanonicalHuffmanCode, len(codeLengthHuffmanCode))
+		copy(clc.CondensedHuffman, codeLengthHuffmanCode)
 		clc.reorder(codeLengthHuffmanCode)
 		return findLengthBoundary(codeLengthHuffmanCode, 3, 3)
 	}
@@ -439,8 +441,8 @@ func (cw *CompressionWriter) compress(content []byte) error {
 	for _, codeLen := range codeLengthHuffmanLengths {
 		cw.core.outputBuffer.writeCompressedContent(uint32(codeLen), 3)
 	}
-	for _, code := range newCodeLengthCode.LengthEncoded {
-		cw.core.outputBuffer.writeCompressedContent(uint32(newCodeLengthCode.CodeLengthHuffman[code.RLECode].Code), uint(newCodeLengthCode.CodeLengthHuffman[code.RLECode].Length))
+	for _, code := range newCodeLengthCode.HuffmanLengthCondensed {
+		cw.core.outputBuffer.writeCompressedContent(uint32(newCodeLengthCode.CondensedHuffman[code.RLECode].Code), uint(newCodeLengthCode.CondensedHuffman[code.RLECode].Length))
 		if rleAlphabets.alphabets[code.RLECode].extraBits > 0 {
 			cw.core.outputBuffer.writeCompressedContent(uint32(code.Offset), uint(rleAlphabets.alphabets[code.RLECode].extraBits))
 		}
@@ -460,7 +462,7 @@ func (cw *CompressionWriter) compress(content []byte) error {
 		}
 	}
 	cw.core.outputBuffer.writeCompressedContent(uint32(newLitLengthCode.LitLengthHuffman[256].Code), uint(newLitLengthCode.LitLengthHuffman[256].Length))
-	return nil
+	return cw.core.outputBuffer.flushAlign()
 }
 
 func tokeniseLZSS(refChannels []chan lzss.Reference) ([]Token, error) {
@@ -484,10 +486,10 @@ func tokeniseLZSS(refChannels []chan lzss.Reference) ([]Token, error) {
 				return nil, errors.New("token match overlapping with the reference")
 			}
 			if ref.Size > maxAllowedMatchLength {
-				return nil, errors.New(fmt.Sprintf("token match cannot be longer than %v\n", maxAllowedMatchLength))
+				return nil, fmt.Errorf("token match cannot be longer than %v\n", maxAllowedMatchLength)
 			}
 			if ref.NegativeOffset > maxAllowedBackwardDistance {
-				return nil, errors.New(fmt.Sprintf("token match cannot be farther backward than %v\n", maxAllowedBackwardDistance))
+				return nil, fmt.Errorf("token match cannot be farther backward than %v\n", maxAllowedBackwardDistance)
 			}
 			nextRunesToIgnore = ref.Size - 1
 			token := Token{
@@ -519,26 +521,27 @@ func (bb *bitBuffer) writeCompressedContent(value uint32, nbits uint) error {
 	if nbits == 0 {
 		return nil
 	}
-	trimbits := min(nbits, 32-bb.bitCount)
-	bb.bitHolder |= (value & ((1 << trimbits) - 1)) << uint32(bb.bitCount)
-	bb.bitCount += trimbits
-	for bb.bitCount >= 8 {
-		byteVal := byte(bb.bitHolder & 0xFF)
-		if _, err := bb.output.Write([]byte{byteVal}); err != nil {
+	trimbits := min(nbits, 32-bb.bitsCount)
+	bb.bitsHolder |= (value & ((1 << trimbits) - 1)) << uint32(bb.bitsCount)
+	bb.bitsCount += trimbits
+	for bb.bitsCount >= 8 {
+		lowestByte := byte(bb.bitsHolder & 0xFF)
+		if _, err := bb.output.Write([]byte{lowestByte}); err != nil {
 			return err
 		}
-		bb.bitHolder >>= 8
-		bb.bitCount -= 8
+		bb.bitsHolder >>= 8
+		bb.bitsCount -= 8
 	}
 	value >>= uint32(trimbits)
 	return bb.writeCompressedContent(value, nbits-trimbits)
 }
 
-func reverseBitsLoop(x uint32, n uint) uint32 {
-	rev := uint32(0)
-	for ; n > 0; n-- {
-		rev |= (x & 1) << (n - 1)
-		x >>= 1
+func (bb *bitBuffer) flushAlign() error {
+	if bb.bitsCount > 8 {
+		return errors.New("bits not written to the output buffer yet")
 	}
-	return rev
+	if bb.bitsCount > 0 {
+		return bb.writeCompressedContent(0, 8-bb.bitsCount)
+	}
+	return nil
 }

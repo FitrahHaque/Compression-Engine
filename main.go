@@ -117,7 +117,47 @@ func main() {
 		// algorithmsChosen := strings.Split(*algorithmCompress, ",")
 		// trimSpace(algorithmsChosen)
 		// engine.CompressFiles(algorithmsChosen, files, *outputFileExtensionCompress)
-		engine.CompressFiles(*algorithmCompress, files, *outputFileExtensionCompress)
+		var args any
+		if *algorithmCompress == "flate" {
+			flateCompressFS := flag.NewFlagSet("flate", flag.ExitOnError)
+			compressFS.Usage = func() {
+				fmt.Fprintf(os.Stderr, "Usage of %s --compress --algorithm=flate [OPTIONS] <file(s)>\n", application)
+				fmt.Fprintf(os.Stderr, "Valid commands include:\n\t%s\n", strings.Join([]string{"btype, bfinal, help"}, ", "))
+				fmt.Fprintf(os.Stderr, "Flag:\n")
+				compressFS.PrintDefaults()
+			}
+			btypeFlateCompress := flateCompressFS.Int("btype", 2, "Which btype to use, choices include: 1, 2, 3")
+			bfinalFlateCompress := flateCompressFS.Int("bfinal", 0, "Final Block of the compression process")
+			helpFlateCompress := flateCompressFS.Bool("help", false, "Compress Help")
+			commandArgs = findIntersection(
+				[]string{
+					"--btype",
+					"--bfinal",
+				},
+				os.Args[3:],
+			)
+			// fmt.Println(commandArgs)
+			if len(commandArgs) == 0 {
+				commandArgs = findIntersection(
+					[]string{
+						"--help",
+					},
+					os.Args[3:],
+				)
+			}
+			flateCompressFS.Parse(commandArgs)
+			if *helpFlateCompress {
+				flateCompressFS.Usage()
+			}
+			args = struct {
+				btype  int
+				bfinal int
+			}{
+				btype:  *btypeFlateCompress,
+				bfinal: *bfinalFlateCompress,
+			}
+		}
+		engine.CompressFiles(*algorithmCompress, files, *outputFileExtensionCompress, args)
 		if *deleteAfterCompress {
 			deleteFiles(files)
 		}
