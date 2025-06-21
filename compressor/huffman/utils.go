@@ -2,7 +2,7 @@ package huffman
 
 import (
 	"container/heap"
-	"errors"
+	"fmt"
 	"slices"
 	"sort"
 )
@@ -107,7 +107,9 @@ func buildTree(symbolFreq map[rune]int) huffmanTree {
 func BuildCanonicalHuffmanTree(symbolFreq []int, lengthLimit int) ([]CanonicalHuffmanCode, error) {
 	symbolFreqMap := make(map[int32]int, len(symbolFreq))
 	for symbol, freq := range symbolFreq {
-		symbolFreqMap[int32(symbol)] = freq
+		if freq > 0 {
+			symbolFreqMap[int32(symbol)] = freq
+		}
 	}
 	lengths := make([]int, len(symbolFreq))
 	root := buildTree(symbolFreqMap)
@@ -123,17 +125,24 @@ func BuildCanonicalHuffmanTree(symbolFreq []int, lengthLimit int) ([]CanonicalHu
 			return
 		}
 	}
-	dfs(root, 0)
+	if node, ok := root.(huffmanLeaf); ok {
+		lengths[node.symbol] = 1
+	} else {
+		dfs(root, 0)
+	}
 	maxLength := 0
 	for _, length := range lengths {
 		maxLength = max(maxLength, length)
 	}
 	if maxLength > lengthLimit {
-		return nil, errors.New("tree is longer than limit")
+		return nil, fmt.Errorf("tree is longer than the limit %v\n", lengthLimit)
 	}
 	lengthCounts := make([]int, maxLength+1)
 	var order []struct{ symbol, length int }
 	for symbol, length := range lengths {
+		if length == 0 {
+			continue
+		}
 		order = append(order, struct {
 			symbol int
 			length int
@@ -148,19 +157,19 @@ func BuildCanonicalHuffmanTree(symbolFreq []int, lengthLimit int) ([]CanonicalHu
 	})
 	nextBaseCode := make([]int, maxLength+1)
 	code := 0
+	fmt.Printf("[ BuildCanonicalHuffmanTree ] length: 0, count: %v\n", lengthCounts[0])
 	for i := 1; i < len(lengthCounts); i++ {
 		code = (code + lengthCounts[i-1]) << 1
 		nextBaseCode[i] = code
+		fmt.Printf("[ BuildCanonicalHuffmanTree ] length: %v, count: %v, nextBaseCode: %v\n", i, lengthCounts[i], nextBaseCode[i])
 	}
 	output := make([]CanonicalHuffmanCode, len(symbolFreq))
 	for _, info := range order {
-		if info.length == 0 {
-			continue
-		}
 		output[info.symbol] = CanonicalHuffmanCode{
 			Code:   nextBaseCode[info.length],
 			Length: info.length,
 		}
+		// checkMSBLength(output[info.symbol])
 		nextBaseCode[info.length]++
 	}
 	return output, nil

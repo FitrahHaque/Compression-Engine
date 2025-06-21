@@ -402,7 +402,7 @@ func (clc *CodeLengthCode) Encode(items any) ([]int, error) {
 	for _, info := range clc.HuffmanLengthCondensed {
 		symbolFreq[info.RLECode]++
 	}
-	if codeLengthHuffmanCode, err := huffman.BuildCanonicalHuffmanTree(symbolFreq, 3); err != nil {
+	if codeLengthHuffmanCode, err := huffman.BuildCanonicalHuffmanTree(symbolFreq, 7); err != nil {
 		return nil, err
 	} else {
 		clc.CondensedHuffman = make([]huffman.CanonicalHuffmanCode, len(codeLengthHuffmanCode))
@@ -410,21 +410,21 @@ func (clc *CodeLengthCode) Encode(items any) ([]int, error) {
 		for i, huffman := range clc.CondensedHuffman {
 			fmt.Printf("[ flate.CodeLengthCode.Encode ] RLECode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", i, huffman.Code, huffman.Length)
 		}
-		clc.reorder(codeLengthHuffmanCode)
+		codeLengthHuffmanCode = clc.reorder(codeLengthHuffmanCode)
 		for i, huffman := range codeLengthHuffmanCode {
 			key := rleAlphabets.keyOrder[i]
 			fmt.Printf("[ flate.CodeLengthCode.Encode ] RLECode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", key, huffman.Code, huffman.Length)
 		}
-		return findLengthBoundary(codeLengthHuffmanCode, 3, 3)
+		return findLengthBoundary(codeLengthHuffmanCode, 3, 7)
 	}
 }
 
-func (clc *CodeLengthCode) reorder(code []huffman.CanonicalHuffmanCode) {
+func (clc *CodeLengthCode) reorder(code []huffman.CanonicalHuffmanCode) []huffman.CanonicalHuffmanCode {
 	var huffmanLengths []huffman.CanonicalHuffmanCode
 	for _, key := range rleAlphabets.keyOrder {
 		huffmanLengths = append(huffmanLengths, code[key])
 	}
-	code = huffmanLengths
+	return huffmanLengths
 }
 
 func (cw *CompressionWriter) compress(content []byte) error {
@@ -458,18 +458,18 @@ func (cw *CompressionWriter) compress(content []byte) error {
 	HCLEN := len(codeLengthHuffmanLengths) - 4
 	cw.core.lock.Lock()
 	defer cw.core.lock.Unlock()
-	fmt.Printf("[ flate.CompressionWriter.compress ] bfinal: %v\n", cw.core.bfinal)
+	fmt.Printf("[ flate.CompressionWriter.compress ] bfinal: %v, bits: %v\n", cw.core.bfinal, 1)
 	cw.core.outputBuffer.writeCompressedContent(cw.core.bfinal, 1)
-	fmt.Printf("[ flate.CompressionWriter.compress ] btype: %v\n", cw.core.btype)
+	fmt.Printf("[ flate.CompressionWriter.compress ] btype: %v, bits: %v\n", cw.core.btype, 2)
 	cw.core.outputBuffer.writeCompressedContent(cw.core.btype, 2)
-	fmt.Printf("[ flate.CompressionWriter.compress ] HLIT: %v\n", HLIT)
+	fmt.Printf("[ flate.CompressionWriter.compress ] HLIT: %v, bits: %v\n", HLIT, 5)
 	cw.core.outputBuffer.writeCompressedContent(uint32(HLIT), 5)
-	fmt.Printf("[ flate.CompressionWriter.compress ] HDIST: %v\n", HDIST)
+	fmt.Printf("[ flate.CompressionWriter.compress ] HDIST: %v, bits: %v\n", HDIST, 5)
 	cw.core.outputBuffer.writeCompressedContent(uint32(HDIST), 5)
-	fmt.Printf("[ flate.CompressionWriter.compress ] HCLEN: %v\n", HCLEN)
+	fmt.Printf("[ flate.CompressionWriter.compress ] HCLEN: %v, bits: %v\n", HCLEN, 4)
 	cw.core.outputBuffer.writeCompressedContent(uint32(HCLEN), 4)
 	for _, codeLen := range codeLengthHuffmanLengths {
-		// fmt.Printf("[ flate.CompressionWriter.compress ] code")
+		fmt.Printf("[ flate.CompressionWriter.compress ] RLEHuffmanLength: %v, bits: 3\n", codeLen)
 		cw.core.outputBuffer.writeCompressedContent(uint32(codeLen), 3)
 	}
 	for _, code := range newCodeLengthCode.HuffmanLengthCondensed {
@@ -498,7 +498,7 @@ func (cw *CompressionWriter) compress(content []byte) error {
 			fmt.Printf("[ flate.CompressionWriter.compress ] Distance: %v, DistanceCode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", token.Distance, token.DistanceCode, distHuff.Code, distHuff.Length)
 			cw.core.outputBuffer.writeCompressedContent(uint32(distHuff.Code), uint(distHuff.Length))
 			if distAlphabets.alphabets[token.DistanceCode].extraBits > 0 {
-				fmt.Printf("[ flate.CompressionWriter.compress ] Distance: %v, DistanceCode: %v, Offset: %v --- bitLength: %v\n", token.Distance, distHuff.Code, token.DistanceOffset, distAlphabets.alphabets[token.DistanceCode].extraBits)
+				fmt.Printf("[ flate.CompressionWriter.compress ] Distance: %v, DistanceCode: %v, Offset: %v --- bitLength: %v\n", token.Distance, token.DistanceCode, token.DistanceOffset, distAlphabets.alphabets[token.DistanceCode].extraBits)
 				cw.core.outputBuffer.writeCompressedContent(uint32(token.DistanceOffset), uint(distAlphabets.alphabets[token.DistanceCode].extraBits))
 			}
 		}
@@ -551,14 +551,18 @@ func tokeniseLZSS(refChannels []chan lzss.Reference) ([]Token, error) {
 
 func findLengthBoundary(items []huffman.CanonicalHuffmanCode, threshold, limit int) ([]int, error) {
 	var length []int
+	var zeros []int
 	for i, info := range items {
 		if info.Length > limit {
 			return nil, errors.New("length is too long for the huffman code")
 		}
 		if i > threshold && info.Length == 0 {
-			continue
+			zeros = append(zeros, 0)
+		} else {
+			length = append(length, zeros...)
+			zeros = []int{}
+			length = append(length, info.Length)
 		}
-		length = append(length, info.Length)
 	}
 	fmt.Printf("[ flate.findLengthBoundary ] len(items): %v, len(length): %v\n", len(items), len(length))
 	return length, nil
@@ -576,7 +580,7 @@ func (bb *bitBuffer) writeCompressedContent(value uint32, nbits uint) error {
 		if _, err := bb.output.Write([]byte{lowestByte}); err != nil {
 			return err
 		}
-		fmt.Printf("[ flate.writeCompressedContent ] Emitted lowestByte: %v\n", lowestByte)
+		fmt.Printf("[ flate.writeCompressedContent ] Emitted lowestByte: %08b\n", lowestByte)
 		bb.bitsHolder >>= 8
 		bb.bitsCount -= 8
 	}

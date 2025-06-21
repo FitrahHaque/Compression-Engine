@@ -18,6 +18,11 @@ var Engines = [...]string{
 	"flate",
 }
 
+type FlateArgs struct {
+	Bfinal uint32
+	Btype  uint32
+}
+
 type compression struct {
 	compressionEngine string
 	writer            io.WriteCloser
@@ -99,14 +104,11 @@ func (c *compression) init(params any) {
 	case "lzss":
 		c.reader, c.writer = newReaderAndWriterFunc.(func(int, int) (io.ReadCloser, io.WriteCloser))(4096, 4096)
 	case "flate":
-		if args, ok := params.(struct {
-			btype  int
-			bfinal int
-		}); !ok {
+		if args, ok := params.(FlateArgs); !ok {
 			panic("arguments missing for flate")
 		} else {
 			fmt.Printf("[ engine.compression.init ] case flate selected with args: %v\n", args)
-			c.reader, c.writer = newReaderAndWriterFunc.(func(int, int) (io.ReadCloser, io.WriteCloser))(args.btype, args.bfinal)
+			c.reader, c.writer = newReaderAndWriterFunc.(func(uint32, uint32) (io.ReadCloser, io.WriteCloser))(args.Btype, args.Bfinal)
 		}
 	default:
 		return

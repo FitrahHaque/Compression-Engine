@@ -150,12 +150,9 @@ func main() {
 			if *helpFlateCompress {
 				flateCompressFS.Usage()
 			}
-			args = struct {
-				btype  int
-				bfinal int
-			}{
-				btype:  *btypeFlateCompress,
-				bfinal: *bfinalFlateCompress,
+			args = engine.FlateArgs{
+				Btype:  uint32(*btypeFlateCompress),
+				Bfinal: uint32(*bfinalFlateCompress),
 			}
 		}
 		engine.CompressFiles(*algorithmCompress, files, *outputFileExtensionCompress, args)
