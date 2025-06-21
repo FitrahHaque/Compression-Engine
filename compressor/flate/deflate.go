@@ -212,7 +212,7 @@ func (dc *DistanceCode) Encode(items interface{}) ([]int, error) {
 		return nil, err
 	} else {
 		dc.DistanceHuffman = distHuffmanCode
-		return findLengthBoundary(distHuffmanCode, 0), nil
+		return findLengthBoundary(distHuffmanCode, 0, 15)
 	}
 }
 
@@ -252,43 +252,77 @@ func (llc *LitLengthCode) Encode(items interface{}) ([]int, error) {
 		return nil, err
 	} else {
 		llc.LitLengthHuffman = litLenHuffmanCode
-		return findLengthBoundary(litLenHuffmanCode, 256), nil
+		return findLengthBoundary(litLenHuffmanCode, 256, 15)
 	}
 }
 
-func (clc *CodeLengthCode) FindCode(items interface{}) (code int, offset int, err error) {
-
-}
-
-func (clc *CodeLengthCode) Encode(items interface{}) ([]int, error) {
-	lengthHuffmanLengths, ok := items.([]int)
-	if !ok {
-		return nil, errors.New("code-length huffman code cannot be generated without the type of int slice")
-	}
+func (clc *CodeLengthCode) FindCode(lengthHuffmanLengths []int) (err error) {
 	countZero, countSame := 0, 0
-	for i, length := range lengthHuffmanLengths {
-		if length == 0 {
-			if countSame != 0 {
-				if countSame < 3 {
-					for _ = range countSame {
-						clc.LengthEncoded = append(clc.LengthEncoded, struct {
-							RLECode int
-							Offset  int
-						}{
-							RLECode: lengthHuffmanLengths[i-1],
-							Offset:  0,
-						})
-					}
-				} else {
+	resolveCountZero := func() error {
+		if countZero != 0 {
+			if countZero < 3 {
+				for _ = range countZero {
 					clc.LengthEncoded = append(clc.LengthEncoded, struct {
 						RLECode int
 						Offset  int
 					}{
-						RLECode: 16,
-						Offset:  countSame - 3,
+						RLECode: 0,
+						Offset:  0,
 					})
 				}
-				countSame = 0
+			} else if countZero < 11 {
+				clc.LengthEncoded = append(clc.LengthEncoded, struct {
+					RLECode int
+					Offset  int
+				}{
+					RLECode: 17,
+					Offset:  countZero - 3,
+				})
+			} else if countZero < 138 {
+				clc.LengthEncoded = append(clc.LengthEncoded, struct {
+					RLECode int
+					Offset  int
+				}{
+					RLECode: 18,
+					Offset:  countZero - 11,
+				})
+			} else {
+				return errors.New("such a long sequence of zeros cannot be encoded")
+			}
+		}
+		return nil
+	}
+	resolveCountSame := func(prevIndex int) error {
+		if countSame != 0 {
+			if countSame < 3 {
+				for _ = range countSame {
+					clc.LengthEncoded = append(clc.LengthEncoded, struct {
+						RLECode int
+						Offset  int
+					}{
+						RLECode: lengthHuffmanLengths[prevIndex],
+						Offset:  0,
+					})
+				}
+			} else if countSame < 6 {
+				clc.LengthEncoded = append(clc.LengthEncoded, struct {
+					RLECode int
+					Offset  int
+				}{
+					RLECode: 16,
+					Offset:  countSame - 3,
+				})
+			} else {
+				return errors.New("such a long sequence of non-zeros cannot be encoded")
+			}
+			countSame = 0
+		}
+		return nil
+	}
+	for i, length := range lengthHuffmanLengths {
+		if length == 0 {
+			if err := resolveCountSame(i - 1); err != nil {
+				return err
 			}
 			countZero++
 			if countZero == 138 {
@@ -302,57 +336,11 @@ func (clc *CodeLengthCode) Encode(items interface{}) ([]int, error) {
 				countZero = 0
 			}
 		} else if i == 0 || length != lengthHuffmanLengths[i-1] {
-			if countZero != 0 {
-				if countZero < 3 {
-					for _ = range countZero {
-						clc.LengthEncoded = append(clc.LengthEncoded, struct {
-							RLECode int
-							Offset  int
-						}{
-							RLECode: 0,
-							Offset:  0,
-						})
-					}
-				} else if countZero < 11 {
-					clc.LengthEncoded = append(clc.LengthEncoded, struct {
-						RLECode int
-						Offset  int
-					}{
-						RLECode: 17,
-						Offset:  countZero - 3,
-					})
-				} else if countZero < 139 {
-					clc.LengthEncoded = append(clc.LengthEncoded, struct {
-						RLECode int
-						Offset  int
-					}{
-						RLECode: 18,
-						Offset:  countZero - 11,
-					})
-				}
-				countZero = 0
+			if err := resolveCountZero(); err != nil {
+				return err
 			}
-			if countSame != 0 {
-				if countSame < 3 {
-					for _ = range countSame {
-						clc.LengthEncoded = append(clc.LengthEncoded, struct {
-							RLECode int
-							Offset  int
-						}{
-							RLECode: lengthHuffmanLengths[i-1],
-							Offset:  0,
-						})
-					}
-				} else {
-					clc.LengthEncoded = append(clc.LengthEncoded, struct {
-						RLECode int
-						Offset  int
-					}{
-						RLECode: 16,
-						Offset:  countSame - 3,
-					})
-				}
-				countSame = 0
+			if err := resolveCountSame(i - 1); err != nil {
+				return err
 			}
 			clc.LengthEncoded = append(clc.LengthEncoded, struct {
 				RLECode int
@@ -375,6 +363,43 @@ func (clc *CodeLengthCode) Encode(items interface{}) ([]int, error) {
 			}
 		}
 	}
+	if err := resolveCountZero(); err != nil {
+		return err
+	}
+	if err := resolveCountSame(len(lengthHuffmanLengths) - 1); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (clc *CodeLengthCode) Encode(items interface{}) ([]int, error) {
+	lengthHuffmanLengths, ok := items.([]int)
+	if !ok {
+		return nil, errors.New("code-length huffman code cannot be generated without the type of int slice")
+	}
+	if err := clc.FindCode(lengthHuffmanLengths); err != nil {
+		return nil, err
+	}
+	symbolFreq := make([]int, 19)
+	for _, info := range clc.LengthEncoded {
+		symbolFreq[info.RLECode]++
+	}
+	if codeLengthHuffmanCode, err := huffman.BuildCanonicalHuffmanTree(symbolFreq, 3); err != nil {
+		return nil, err
+	} else {
+		clc.CodeLengthHuffman = make([]huffman.CanonicalHuffmanCode, len(codeLengthHuffmanCode))
+		copy(clc.CodeLengthHuffman, codeLengthHuffmanCode)
+		clc.reorder(codeLengthHuffmanCode)
+		return findLengthBoundary(codeLengthHuffmanCode, 3, 3)
+	}
+}
+
+func (clc *CodeLengthCode) reorder(code []huffman.CanonicalHuffmanCode) {
+	var huffmanLengths []huffman.CanonicalHuffmanCode
+	for _, key := range rleAlphabets.keyOrder {
+		huffmanLengths = append(huffmanLengths, code[key])
+	}
+	code = huffmanLengths
 }
 
 func (cw *CompressionWriter) compress(content []byte) error {
@@ -395,20 +420,47 @@ func (cw *CompressionWriter) compress(content []byte) error {
 	if err != nil {
 		return err
 	}
-	cw.core.lock.Lock()
-	defer cw.core.lock.Unlock()
-	cw.core.outputBuffer.writeCompressedContent(cw.core.bfinal, 1)
-	cw.core.outputBuffer.writeCompressedContent(cw.core.btype, 2)
-	HLIT := len(litLenHuffmanLengths) - 257
-	HDIST := len(distHuffmanLengths) - 1
-	cw.core.outputBuffer.writeCompressedContent(uint32(HLIT), 5)
-	cw.core.outputBuffer.writeCompressedContent(uint32(HDIST), 5)
 	concatenatedHuffmanLengths := append(litLenHuffmanLengths, distHuffmanLengths...)
 	newCodeLengthCode := new(CodeLengthCode)
 	codeLengthHuffmanLengths, err := newCodeLengthCode.Encode(concatenatedHuffmanLengths)
 	if err != nil {
 		return err
 	}
+	HLIT := len(litLenHuffmanLengths) - 257
+	HDIST := len(distHuffmanLengths) - 1
+	HCLEN := len(codeLengthHuffmanLengths) - 4
+	cw.core.lock.Lock()
+	defer cw.core.lock.Unlock()
+	cw.core.outputBuffer.writeCompressedContent(cw.core.bfinal, 1)
+	cw.core.outputBuffer.writeCompressedContent(cw.core.btype, 2)
+	cw.core.outputBuffer.writeCompressedContent(uint32(HLIT), 5)
+	cw.core.outputBuffer.writeCompressedContent(uint32(HDIST), 5)
+	cw.core.outputBuffer.writeCompressedContent(uint32(HCLEN), 4)
+	for _, codeLen := range codeLengthHuffmanLengths {
+		cw.core.outputBuffer.writeCompressedContent(uint32(codeLen), 3)
+	}
+	for _, code := range newCodeLengthCode.LengthEncoded {
+		cw.core.outputBuffer.writeCompressedContent(uint32(newCodeLengthCode.CodeLengthHuffman[code.RLECode].Code), uint(newCodeLengthCode.CodeLengthHuffman[code.RLECode].Length))
+		if rleAlphabets.alphabets[code.RLECode].extraBits > 0 {
+			cw.core.outputBuffer.writeCompressedContent(uint32(code.Offset), uint(rleAlphabets.alphabets[code.RLECode].extraBits))
+		}
+	}
+	for _, token := range tokens {
+		if token.Kind == LiteralToken {
+			cw.core.outputBuffer.writeCompressedContent(uint32(newLitLengthCode.LitLengthHuffman[token.Value].Code), uint(newLitLengthCode.LitLengthHuffman[token.Value].Length))
+		} else {
+			cw.core.outputBuffer.writeCompressedContent(uint32(newLitLengthCode.LitLengthHuffman[token.LengthCode].Code), uint(newLitLengthCode.LitLengthHuffman[token.LengthCode].Length))
+			if lenAlphabets.alphabets[token.LengthCode].extraBits > 0 {
+				cw.core.outputBuffer.writeCompressedContent(uint32(token.LengthOffset), uint(lenAlphabets.alphabets[token.LengthCode].extraBits))
+			}
+			cw.core.outputBuffer.writeCompressedContent(uint32(newDistanceCode.DistanceHuffman[token.DistanceCode].Code), uint(newDistanceCode.DistanceHuffman[token.DistanceCode].Length))
+			if distAlphabets.alphabets[token.DistanceCode].extraBits > 0 {
+				cw.core.outputBuffer.writeCompressedContent(uint32(token.DistanceOffset), uint(distAlphabets.alphabets[token.DistanceCode].extraBits))
+			}
+		}
+	}
+	cw.core.outputBuffer.writeCompressedContent(uint32(newLitLengthCode.LitLengthHuffman[256].Code), uint(newLitLengthCode.LitLengthHuffman[256].Length))
+	return nil
 }
 
 func tokeniseLZSS(refChannels []chan lzss.Reference) ([]Token, error) {
@@ -449,15 +501,18 @@ func tokeniseLZSS(refChannels []chan lzss.Reference) ([]Token, error) {
 	return tokens, nil
 }
 
-func findLengthBoundary(items []huffman.CanonicalHuffmanCode, threshold int) []int {
+func findLengthBoundary(items []huffman.CanonicalHuffmanCode, threshold, limit int) ([]int, error) {
 	var length []int
 	for i, info := range items {
+		if info.Length > limit {
+			return nil, errors.New("length is too long for the huffman code")
+		}
 		if i > threshold && info.Length == 0 {
 			continue
 		}
 		length = append(length, info.Length)
 	}
-	return length
+	return length, nil
 }
 
 func (bb *bitBuffer) writeCompressedContent(value uint32, nbits uint) error {
