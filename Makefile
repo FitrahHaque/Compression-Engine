@@ -1,7 +1,7 @@
 BINARY  := shrink
 DESTDIR := $(HOME)/bin
 
-.PHONY: all build install clean dev compress decompress
+.PHONY: all build install clean dev compress decompress flate
 
 all: build
 
@@ -24,3 +24,6 @@ compress: install
 
 decompress: compress
 	shrink --decompress --algorithm=lzss b.txt.shk
+
+deflate: install
+	shrink --compress --algorithm=flate f.txt

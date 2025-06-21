@@ -119,6 +119,7 @@ func main() {
 		// engine.CompressFiles(algorithmsChosen, files, *outputFileExtensionCompress)
 		var args any
 		if *algorithmCompress == "flate" {
+			fmt.Printf("[ main ] flate algorithm chosen\n")
 			flateCompressFS := flag.NewFlagSet("flate", flag.ExitOnError)
 			compressFS.Usage = func() {
 				fmt.Fprintf(os.Stderr, "Usage of %s --compress --algorithm=flate [OPTIONS] <file(s)>\n", application)
