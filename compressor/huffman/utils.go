@@ -13,6 +13,21 @@ type CanonicalHuffmanCode struct {
 	Code   int
 	Length int
 }
+type CanonicalHuffmanDecode struct {
+	Symbol int
+	Length int
+}
+
+type CanonicalHuffman interface {
+	GetLength() int
+	GetValue() int
+}
+
+type CanonicalHuffmanNode struct {
+	Item        CanonicalHuffman
+	isLeaf      bool
+	left, right *CanonicalHuffmanNode
+}
 type huffmanTree interface {
 	getFrequency() int
 	getId() int
@@ -104,7 +119,7 @@ func buildTree(symbolFreq map[rune]int) huffmanTree {
 	return heap.Pop(&treehub).(huffmanTree)
 }
 
-func BuildCanonicalHuffmanTree(symbolFreq []int, lengthLimit int) ([]CanonicalHuffmanCode, error) {
+func BuildCanonicalHuffmanEncoder(symbolFreq []int, lengthLimit int) ([]CanonicalHuffman, error) {
 	symbolFreqMap := make(map[int32]int, len(symbolFreq))
 	for symbol, freq := range symbolFreq {
 		if freq > 0 {
@@ -163,7 +178,7 @@ func BuildCanonicalHuffmanTree(symbolFreq []int, lengthLimit int) ([]CanonicalHu
 		nextBaseCode[i] = code
 		fmt.Printf("[ BuildCanonicalHuffmanTree ] length: %v, count: %v, nextBaseCode: %v\n", i, lengthCounts[i], nextBaseCode[i])
 	}
-	output := make([]CanonicalHuffmanCode, len(symbolFreq))
+	output := make([]CanonicalHuffman, len(symbolFreq))
 	for _, info := range order {
 		output[info.symbol] = CanonicalHuffmanCode{
 			Code:   nextBaseCode[info.length],
@@ -173,4 +188,89 @@ func BuildCanonicalHuffmanTree(symbolFreq []int, lengthLimit int) ([]CanonicalHu
 		nextBaseCode[info.length]++
 	}
 	return output, nil
+}
+
+func BuildCanonicalHuffmanDecoder(lengths []uint32) (*CanonicalHuffmanNode, error) {
+	maxLength := uint32(0)
+	for _, length := range lengths {
+		maxLength = max(maxLength, length)
+	}
+	lengthCounts := make([]int, maxLength+1)
+	var order []struct {
+		symbol int
+		length uint32
+	}
+	for symbol, length := range lengths {
+		if length == 0 {
+			continue
+		}
+		order = append(order, struct {
+			symbol int
+			length uint32
+		}{
+			symbol: symbol,
+			length: length,
+		})
+		lengthCounts[length]++
+	}
+	sort.Slice(order, func(i, j int) bool {
+		if order[i].length == order[j].length {
+			return order[i].symbol < order[j].symbol
+		}
+		return order[i].length < order[j].length
+	})
+	nextBaseCode := make([]uint32, maxLength+1)
+	code := 0
+	for i := 1; i < len(lengthCounts); i++ {
+		code = (code + lengthCounts[i-1]) << 1
+		nextBaseCode[i] = uint32(code)
+	}
+	var root *CanonicalHuffmanNode
+	for _, info := range order {
+		item := CanonicalHuffmanDecode{
+			Symbol: info.symbol,
+			Length: int(info.length),
+		}
+		BuildCanonicalHuffmanTree(root, info.length, item, nextBaseCode[info.length])
+		nextBaseCode[info.length]++
+	}
+	return root, nil
+}
+
+func (ch CanonicalHuffmanCode) GetLength() int {
+	return ch.Length
+}
+
+func (ch CanonicalHuffmanCode) GetValue() int {
+	return ch.Code
+}
+
+func (ch CanonicalHuffmanDecode) GetLength() int {
+	return ch.Length
+}
+
+func (ch CanonicalHuffmanDecode) GetValue() int {
+	return ch.Symbol
+}
+
+func BuildCanonicalHuffmanTree(node *CanonicalHuffmanNode, lengthRemaining uint32, item CanonicalHuffman, code uint32) {
+	if lengthRemaining == 0 {
+		node.Item = item
+		node.isLeaf = true
+		return
+	}
+	bit := code & 1
+	code >>= 1
+	lengthRemaining--
+	if bit == 0 {
+		if node.left == nil {
+			node.left = &CanonicalHuffmanNode{}
+		}
+		BuildCanonicalHuffmanTree(node.left, lengthRemaining, item, code)
+	} else {
+		if node.right == nil {
+			node.right = &CanonicalHuffmanNode{}
+		}
+		BuildCanonicalHuffmanTree(node.right, lengthRemaining, item, code)
+	}
 }
