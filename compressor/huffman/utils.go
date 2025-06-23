@@ -231,7 +231,7 @@ func BuildCanonicalHuffmanDecoder(lengths []uint32) (*CanonicalHuffmanNode, erro
 			Symbol: info.symbol,
 			Length: int(info.length),
 		}
-		BuildCanonicalHuffmanTree(root, info.length, item, nextBaseCode[info.length])
+		buildCanonicalHuffmanTree(root, info.length, item, nextBaseCode[info.length])
 		nextBaseCode[info.length]++
 	}
 	return root, nil
@@ -253,7 +253,7 @@ func (ch CanonicalHuffmanDecode) GetValue() int {
 	return ch.Symbol
 }
 
-func BuildCanonicalHuffmanTree(node *CanonicalHuffmanNode, lengthRemaining uint32, item CanonicalHuffman, code uint32) {
+func buildCanonicalHuffmanTree(node *CanonicalHuffmanNode, lengthRemaining uint32, item CanonicalHuffman, code uint32) {
 	if lengthRemaining == 0 {
 		node.Item = item
 		node.IsLeaf = true
@@ -266,11 +266,11 @@ func BuildCanonicalHuffmanTree(node *CanonicalHuffmanNode, lengthRemaining uint3
 		if node.Left == nil {
 			node.Left = &CanonicalHuffmanNode{}
 		}
-		BuildCanonicalHuffmanTree(node.Left, lengthRemaining, item, code)
+		buildCanonicalHuffmanTree(node.Left, lengthRemaining, item, code)
 	} else {
 		if node.Right == nil {
 			node.Right = &CanonicalHuffmanNode{}
 		}
-		BuildCanonicalHuffmanTree(node.Right, lengthRemaining, item, code)
+		buildCanonicalHuffmanTree(node.Right, lengthRemaining, item, code)
 	}
 }

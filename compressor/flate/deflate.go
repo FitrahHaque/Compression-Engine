@@ -28,9 +28,11 @@ type Rulebook struct {
 
 type LitLengthCode struct {
 	LitLengthHuffman []huffman.CanonicalHuffman
+	CanonicalRoot    *huffman.CanonicalHuffmanNode
 }
 type DistanceCode struct {
 	DistanceHuffman []huffman.CanonicalHuffman
+	CanonicalRoot   *huffman.CanonicalHuffmanNode
 }
 type CodeLengthCode struct {
 	HuffmanLengthCondensed []struct {

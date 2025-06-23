@@ -79,6 +79,9 @@ func (dw *DecompressionWriter) decompress() error {
 	dw.core.lock.Lock()
 	defer dw.core.lock.Unlock()
 
+	dataReader := func(nbits uint) (uint32, error) {
+		return readCompressedContent(dw.core.bitBuffer, dw.core.inputBuffer, nbits)
+	}
 	// bfinal
 	if input, err := readCompressedContent(dw.core.bitBuffer, dw.core.inputBuffer, 1); err != nil {
 		return err
@@ -129,15 +132,21 @@ func (dw *DecompressionWriter) decompress() error {
 		}
 	}
 	newCodeLengthCode := new(CodeLengthCode)
-
 	newCodeLengthCode.BuildHuffmanTree(codeLengthHuffmanLengths)
-	dataReader := func(nbits uint) (uint32, error) {
-		return readCompressedContent(dw.core.bitBuffer, dw.core.inputBuffer, nbits)
-	}
 
 	// Expanded Huffman Lengths
-	litLenHuffmanLengths, distHuffmanLengths, err := newCodeLengthCode.ReadCondensedHuffman(dataReader, HLIT, HDIST)
-
+	newLitLengthCode := new(LitLengthCode)
+	newDistanceCode := new(DistanceCode)
+	if litLenHuffmanLengths, distHuffmanLengths, err := newCodeLengthCode.ReadCondensedHuffman(dataReader, HLIT, HDIST); err != nil {
+		return err
+	} else {
+		if err := newLitLengthCode.BuildHuffmanTree(litLenHuffmanLengths); err != nil {
+			return err
+		}
+		if err := newDistanceCode.BuildHuffmanTree(distHuffmanLengths); err != nil {
+			return err
+		}
+	}
 }
 
 func readCompressedContent(bb *bitBuffer, inputBuffer io.ReadWriter, nbits uint) (uint32, error) {
@@ -164,6 +173,23 @@ func (clc *CodeLengthCode) BuildHuffmanTree(huffmanLengths []uint32) error {
 		return err
 	} else {
 		clc.CanonicalRoot = canonicalRoot
+	}
+	return nil
+}
+
+func (llc *LitLengthCode) BuildHuffmanTree(huffmanLengths []uint32) error {
+	if canonicalRoot, err := huffman.BuildCanonicalHuffmanDecoder(huffmanLengths); err != nil {
+		return err
+	} else {
+		llc.CanonicalRoot = canonicalRoot
+	}
+	return nil
+}
+func (dc *DistanceCode) BuildHuffmanTree(huffmanLengths []uint32) error {
+	if canonicalRoot, err := huffman.BuildCanonicalHuffmanDecoder(huffmanLengths); err != nil {
+		return err
+	} else {
+		dc.CanonicalRoot = canonicalRoot
 	}
 	return nil
 }
