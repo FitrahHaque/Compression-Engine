@@ -80,14 +80,14 @@ func (dw *DecompressionWriter) decompress() error {
 	defer dw.core.lock.Unlock()
 
 	// bfinal
-	if input, err := dw.readCompressedContent(1); err != nil {
+	if input, err := readCompressedContent(dw.core.bitBuffer, dw.core.inputBuffer, 1); err != nil {
 		return err
 	} else {
 		dw.core.bfinal = input
 	}
 
 	// btype
-	if input, err := dw.readCompressedContent(2); err != nil {
+	if input, err := readCompressedContent(dw.core.bitBuffer, dw.core.inputBuffer, 2); err != nil {
 		return err
 	} else {
 		dw.core.btype = input
@@ -96,20 +96,20 @@ func (dw *DecompressionWriter) decompress() error {
 	var HLIT, HDIST, HCLEN uint32
 
 	// HLIT
-	if input, err := dw.readCompressedContent(5); err != nil {
+	if input, err := readCompressedContent(dw.core.bitBuffer, dw.core.inputBuffer, 5); err != nil {
 		return err
 	} else {
 		HLIT = input
 	}
 	// HDIST
-	if input, err := dw.readCompressedContent(5); err != nil {
+	if input, err := readCompressedContent(dw.core.bitBuffer, dw.core.inputBuffer, 5); err != nil {
 		return err
 	} else {
 		HDIST = input
 	}
 
 	// HCLEN
-	if input, err := dw.readCompressedContent(4); err != nil {
+	if input, err := readCompressedContent(dw.core.bitBuffer, dw.core.inputBuffer, 4); err != nil {
 		return err
 	} else {
 		HCLEN = input
@@ -122,33 +122,31 @@ func (dw *DecompressionWriter) decompress() error {
 	// Code-Length Huffman Length
 	var codeLengthHuffmanLengths []uint32
 	for range HCLEN {
-		if input, err := dw.readCompressedContent(3); err != nil {
+		if input, err := readCompressedContent(dw.core.bitBuffer, dw.core.inputBuffer, 3); err != nil {
 			return err
 		} else {
 			codeLengthHuffmanLengths = append(codeLengthHuffmanLengths, input)
 		}
 	}
 	newCodeLengthCode := new(CodeLengthCode)
-	newCodeLengthCode.Decode(codeLengthHuffmanLengths)
+
+	newCodeLengthCode.BuildHuffmanTree(codeLengthHuffmanLengths)
+	dataReader := func(nbits uint) (uint32, error) {
+		return readCompressedContent(dw.core.bitBuffer, dw.core.inputBuffer, nbits)
+	}
+
+	// Expanded Huffman Lengths
+	litLenHuffmanLengths, distHuffmanLengths, err := newCodeLengthCode.ReadCondensedHuffman(dataReader, HLIT, HDIST)
 
 }
 
-// func (dw *DecompressionWriter) readBits(nbits int) (uint32, error) {
-// 	if nbits > 32 {
-// 		return 0, errors.New("cannot read more than 32 bits at once.")
-// 	}
-// 	return dw.core.outputBuffer.readCompressedContent(nbits)
-
-// }
-
-func (dw *DecompressionWriter) readCompressedContent(nbits uint) (uint32, error) {
-	bb := dw.core.bitBuffer
+func readCompressedContent(bb *bitBuffer, inputBuffer io.ReadWriter, nbits uint) (uint32, error) {
 	if nbits > 32 {
 		return 0, errors.New("cannot read more than 32 bits at once.")
 	}
 	for bb.bitsCount < nbits {
 		newData := make([]byte, 1)
-		if _, err := dw.core.inputBuffer.Read(newData); err != nil {
+		if _, err := inputBuffer.Read(newData); err != nil {
 			return 0, errors.New("not enough bits to read from the compressed data")
 		}
 		bb.bitsHolder |= uint32(newData[0]) << uint32(bb.bitsCount)
@@ -160,7 +158,7 @@ func (dw *DecompressionWriter) readCompressedContent(nbits uint) (uint32, error)
 	return output, nil
 }
 
-func (clc *CodeLengthCode) Decode(huffmanLengths []uint32) error {
+func (clc *CodeLengthCode) BuildHuffmanTree(huffmanLengths []uint32) error {
 	huffmanLengths = clc.reshuffle(huffmanLengths)
 	if canonicalRoot, err := huffman.BuildCanonicalHuffmanDecoder(huffmanLengths); err != nil {
 		return err
@@ -173,8 +171,78 @@ func (clc *CodeLengthCode) Decode(huffmanLengths []uint32) error {
 func (clc *CodeLengthCode) reshuffle(huffmanLengths []uint32) []uint32 {
 	lengths := make([]uint32, 19)
 	for i, length := range huffmanLengths {
-		key := rleAlphabets.keyOrder[i]
+		key := rleAlphabets.KeyOrder[i]
 		lengths[key] = length
 	}
 	return lengths
+}
+
+func (clc *CodeLengthCode) ReadCondensedHuffman(dataReader func(uint) (uint32, error), HLIT, HDIST uint32) ([]uint32, []uint32, error) {
+	remaining := HLIT + HDIST
+	var concatenatedHuffmanLengths []uint32
+	expandRule := func(rule int) ([]uint32, error) {
+		extraBits := rleAlphabets.Alphabets[rule].ExtraBits
+		var offset uint32
+		if extraBits > 0 {
+			if o, err := dataReader(uint(extraBits)); err != nil {
+				return nil, err
+			} else {
+				offset = o
+			}
+		}
+		var output []uint32
+		if rule < 16 {
+			return []uint32{uint32(rule)}, nil
+		} else if rule == 16 {
+			length := len(concatenatedHuffmanLengths)
+			if length == 0 {
+				return nil, errors.New("incorrectly condensed on empty slice")
+			} else {
+				n := rleAlphabets.Alphabets[rule].Base + int(offset)
+				val := concatenatedHuffmanLengths[length-1]
+				for range n {
+					output = append(output, val)
+				}
+			}
+		} else if rule < 19 {
+			n := rleAlphabets.Alphabets[rule].Base + int(offset)
+			for range n {
+				output = append(output, 0)
+			}
+		} else {
+			return nil, errors.New("no match found for the rule")
+		}
+		return output, nil
+	}
+	for remaining > 0 {
+		if rule, err := TraverseHuffmanTree(dataReader, clc.CanonicalRoot); err != nil {
+			return nil, nil, err
+		} else if lengths, err := expandRule(int(rule)); err != nil {
+			return nil, nil, err
+		} else {
+			concatenatedHuffmanLengths = append(concatenatedHuffmanLengths, lengths...)
+		}
+	}
+	return concatenatedHuffmanLengths[:HLIT], concatenatedHuffmanLengths[HLIT : HLIT+HDIST], nil
+}
+
+func TraverseHuffmanTree(dataReader func(uint) (uint32, error), node *huffman.CanonicalHuffmanNode) (uint32, error) {
+	if node.IsLeaf {
+		return uint32(node.Item.GetValue()), nil
+	}
+	if input, err := dataReader(1); err != nil {
+		return 0, err
+	} else if input == 0 {
+		if node.Left == nil {
+			return 0, errors.New("tree traversal failed due to absence of appropriate subtree")
+		} else {
+			return TraverseHuffmanTree(dataReader, node.Left)
+		}
+	} else {
+		if node.Right == nil {
+			return 0, errors.New("tree traversal failed due to absence of appropriate subtree")
+		} else {
+			return TraverseHuffmanTree(dataReader, node.Right)
+		}
+	}
 }

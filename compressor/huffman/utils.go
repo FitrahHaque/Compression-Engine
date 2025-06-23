@@ -25,8 +25,8 @@ type CanonicalHuffman interface {
 
 type CanonicalHuffmanNode struct {
 	Item        CanonicalHuffman
-	isLeaf      bool
-	left, right *CanonicalHuffmanNode
+	IsLeaf      bool
+	Left, Right *CanonicalHuffmanNode
 }
 type huffmanTree interface {
 	getFrequency() int
@@ -256,21 +256,21 @@ func (ch CanonicalHuffmanDecode) GetValue() int {
 func BuildCanonicalHuffmanTree(node *CanonicalHuffmanNode, lengthRemaining uint32, item CanonicalHuffman, code uint32) {
 	if lengthRemaining == 0 {
 		node.Item = item
-		node.isLeaf = true
+		node.IsLeaf = true
 		return
 	}
 	bit := code & 1
 	code >>= 1
 	lengthRemaining--
 	if bit == 0 {
-		if node.left == nil {
-			node.left = &CanonicalHuffmanNode{}
+		if node.Left == nil {
+			node.Left = &CanonicalHuffmanNode{}
 		}
-		BuildCanonicalHuffmanTree(node.left, lengthRemaining, item, code)
+		BuildCanonicalHuffmanTree(node.Left, lengthRemaining, item, code)
 	} else {
-		if node.right == nil {
-			node.right = &CanonicalHuffmanNode{}
+		if node.Right == nil {
+			node.Right = &CanonicalHuffmanNode{}
 		}
-		BuildCanonicalHuffmanTree(node.right, lengthRemaining, item, code)
+		BuildCanonicalHuffmanTree(node.Right, lengthRemaining, item, code)
 	}
 }

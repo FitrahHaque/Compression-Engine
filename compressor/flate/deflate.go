@@ -18,27 +18,14 @@ const (
 	MatchToken
 )
 
-type DistanceAlphabets struct {
-	alphabets []struct {
-		extraBits    int
-		baseDistance int
+type Rulebook struct {
+	Alphabets map[int]struct {
+		ExtraBits int
+		Base      int
 	}
+	KeyOrder []int
 }
 
-type LengthAlphabets struct {
-	alphabets map[int]struct {
-		extraBits  int
-		baseLength int
-	}
-	keyOrder []int
-}
-
-type CodeLengthAlphabets struct {
-	alphabets map[int]struct {
-		extraBits int
-	}
-	keyOrder []int
-}
 type LitLengthCode struct {
 	LitLengthHuffman []huffman.CanonicalHuffman
 }
@@ -52,10 +39,6 @@ type CodeLengthCode struct {
 	}
 	CondensedHuffman []huffman.CanonicalHuffman
 	CanonicalRoot    *huffman.CanonicalHuffmanNode
-}
-type AlphabetCode interface {
-	FindCode(value int) (int, int, error)
-	Encode(items any) ([]int, error)
 }
 
 type Token struct {
@@ -71,34 +54,38 @@ type Token struct {
 
 var maxAllowedBackwardDistance int = 32768
 var maxAllowedMatchLength int = 258
-var lenAlphabets = LengthAlphabets{
-	alphabets: map[int]struct {
-		extraBits  int
-		baseLength int
+var lenAlphabets = Rulebook{
+	Alphabets: map[int]struct {
+		ExtraBits int
+		Base      int
 	}{
-		257: {extraBits: 0, baseLength: 3}, 258: {extraBits: 0, baseLength: 4}, 259: {extraBits: 0, baseLength: 5}, 260: {extraBits: 0, baseLength: 6}, 261: {extraBits: 0, baseLength: 7}, 262: {extraBits: 0, baseLength: 8}, 263: {extraBits: 0, baseLength: 9}, 264: {extraBits: 0, baseLength: 10}, 265: {extraBits: 1, baseLength: 11}, 266: {extraBits: 1, baseLength: 13}, 267: {extraBits: 1, baseLength: 15}, 268: {extraBits: 1, baseLength: 17}, 269: {extraBits: 2, baseLength: 19}, 270: {extraBits: 2, baseLength: 23}, 271: {extraBits: 2, baseLength: 27}, 272: {extraBits: 3, baseLength: 31}, 273: {extraBits: 3, baseLength: 35}, 274: {extraBits: 3, baseLength: 43}, 275: {extraBits: 3, baseLength: 51}, 276: {extraBits: 3, baseLength: 59}, 277: {extraBits: 4}, 278: {extraBits: 4, baseLength: 83}, 279: {extraBits: 4, baseLength: 99}, 280: {extraBits: 4, baseLength: 115}, 281: {extraBits: 5, baseLength: 131}, 282: {extraBits: 5, baseLength: 163}, 283: {extraBits: 5, baseLength: 195}, 284: {extraBits: 5, baseLength: 227}, 285: {extraBits: 0, baseLength: 258},
+		257: {ExtraBits: 0, Base: 3}, 258: {ExtraBits: 0, Base: 4}, 259: {ExtraBits: 0, Base: 5}, 260: {ExtraBits: 0, Base: 6}, 261: {ExtraBits: 0, Base: 7}, 262: {ExtraBits: 0, Base: 8}, 263: {ExtraBits: 0, Base: 9}, 264: {ExtraBits: 0, Base: 10}, 265: {ExtraBits: 1, Base: 11}, 266: {ExtraBits: 1, Base: 13}, 267: {ExtraBits: 1, Base: 15}, 268: {ExtraBits: 1, Base: 17}, 269: {ExtraBits: 2, Base: 19}, 270: {ExtraBits: 2, Base: 23}, 271: {ExtraBits: 2, Base: 27}, 272: {ExtraBits: 3, Base: 31}, 273: {ExtraBits: 3, Base: 35}, 274: {ExtraBits: 3, Base: 43}, 275: {ExtraBits: 3, Base: 51}, 276: {ExtraBits: 3, Base: 59}, 277: {ExtraBits: 4, Base: 67}, 278: {ExtraBits: 4, Base: 83}, 279: {ExtraBits: 4, Base: 99}, 280: {ExtraBits: 4, Base: 115}, 281: {ExtraBits: 5, Base: 131}, 282: {ExtraBits: 5, Base: 163}, 283: {ExtraBits: 5, Base: 195}, 284: {ExtraBits: 5, Base: 227}, 285: {ExtraBits: 0, Base: 258},
 	},
-	keyOrder: []int{
+	KeyOrder: []int{
 		257, 258, 259, 260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285,
 	},
 }
 
-var distAlphabets = DistanceAlphabets{
-	alphabets: []struct {
-		extraBits    int
-		baseDistance int
+var distAlphabets = Rulebook{
+	Alphabets: map[int]struct {
+		ExtraBits int
+		Base      int
 	}{
-		{extraBits: 0, baseDistance: 1}, {extraBits: 0, baseDistance: 2}, {extraBits: 0, baseDistance: 3}, {extraBits: 0, baseDistance: 4}, {extraBits: 1, baseDistance: 5}, {extraBits: 1, baseDistance: 7}, {extraBits: 2, baseDistance: 9}, {extraBits: 2, baseDistance: 13}, {extraBits: 3, baseDistance: 17}, {extraBits: 3, baseDistance: 25}, {extraBits: 4, baseDistance: 33}, {extraBits: 4, baseDistance: 49}, {extraBits: 5, baseDistance: 65}, {extraBits: 5, baseDistance: 97}, {extraBits: 6, baseDistance: 129}, {extraBits: 6, baseDistance: 193}, {extraBits: 7, baseDistance: 257}, {extraBits: 7, baseDistance: 385}, {extraBits: 8, baseDistance: 513}, {extraBits: 8, baseDistance: 769}, {extraBits: 9, baseDistance: 1025}, {extraBits: 9, baseDistance: 1537}, {extraBits: 10, baseDistance: 2049}, {extraBits: 10, baseDistance: 3073}, {extraBits: 11, baseDistance: 4097}, {extraBits: 11, baseDistance: 6145}, {extraBits: 12, baseDistance: 8193}, {extraBits: 12, baseDistance: 12289}, {extraBits: 13, baseDistance: 16385}, {extraBits: 13, baseDistance: 24577},
+		0: {ExtraBits: 0, Base: 1}, 1: {ExtraBits: 0, Base: 2}, 2: {ExtraBits: 0, Base: 3}, 3: {ExtraBits: 0, Base: 4}, 4: {ExtraBits: 1, Base: 5}, 5: {ExtraBits: 1, Base: 7}, 6: {ExtraBits: 2, Base: 9}, 7: {ExtraBits: 2, Base: 13}, 8: {ExtraBits: 3, Base: 17}, 9: {ExtraBits: 3, Base: 25}, 10: {ExtraBits: 4, Base: 33}, 11: {ExtraBits: 4, Base: 49}, 12: {ExtraBits: 5, Base: 65}, 13: {ExtraBits: 5, Base: 97}, 14: {ExtraBits: 6, Base: 129}, 15: {ExtraBits: 6, Base: 193}, 16: {ExtraBits: 7, Base: 257}, 17: {ExtraBits: 7, Base: 385}, 18: {ExtraBits: 8, Base: 513}, 19: {ExtraBits: 8, Base: 769}, 20: {ExtraBits: 9, Base: 1025}, 21: {ExtraBits: 9, Base: 1537}, 22: {ExtraBits: 10, Base: 2049}, 23: {ExtraBits: 10, Base: 3073}, 24: {ExtraBits: 11, Base: 4097}, 25: {ExtraBits: 11, Base: 6145}, 26: {ExtraBits: 12, Base: 8193}, 27: {ExtraBits: 12, Base: 12289}, 28: {ExtraBits: 13, Base: 16385}, 29: {ExtraBits: 13, Base: 24577},
+	},
+	KeyOrder: []int{
+		0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
 	},
 }
 
-var rleAlphabets = CodeLengthAlphabets{
-	alphabets: map[int]struct {
-		extraBits int
+var rleAlphabets = Rulebook{
+	Alphabets: map[int]struct {
+		ExtraBits int
+		Base      int
 	}{
-		16: {extraBits: 2}, 17: {extraBits: 3}, 18: {extraBits: 7}, 0: {extraBits: 0}, 8: {extraBits: 0}, 7: {extraBits: 0}, 9: {extraBits: 0}, 6: {extraBits: 0}, 10: {extraBits: 0}, 5: {extraBits: 0}, 11: {extraBits: 0}, 4: {extraBits: 0}, 12: {extraBits: 0}, 3: {extraBits: 0}, 13: {extraBits: 0}, 2: {extraBits: 0}, 14: {extraBits: 0}, 1: {extraBits: 0}, 15: {extraBits: 0},
+		16: {ExtraBits: 2, Base: 3}, 17: {ExtraBits: 3, Base: 3}, 18: {ExtraBits: 7, Base: 11}, 0: {ExtraBits: 0, Base: 0}, 8: {ExtraBits: 0, Base: 8}, 7: {ExtraBits: 0, Base: 7}, 9: {ExtraBits: 0, Base: 9}, 6: {ExtraBits: 0, Base: 6}, 10: {ExtraBits: 0, Base: 10}, 5: {ExtraBits: 0, Base: 5}, 11: {ExtraBits: 0, Base: 11}, 4: {ExtraBits: 0, Base: 4}, 12: {ExtraBits: 0, Base: 12}, 3: {ExtraBits: 0, Base: 3}, 13: {ExtraBits: 0, Base: 13}, 2: {ExtraBits: 0, Base: 2}, 14: {ExtraBits: 0, Base: 14}, 1: {ExtraBits: 0, Base: 1}, 15: {ExtraBits: 0, Base: 15},
 	},
-	keyOrder: []int{
+	KeyOrder: []int{
 		16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
 	},
 }
@@ -184,9 +171,9 @@ func (dc *DistanceCode) FindCode(value int) (code int, offset int, err error) {
 	if value < 1 || value > maxAllowedBackwardDistance {
 		return 0, 0, errors.New("value is out of range to have a match with RFC distance code")
 	}
-	for i, info := range distAlphabets.alphabets {
-		if value >= info.baseDistance && (i+1 == len(distAlphabets.alphabets) || value < distAlphabets.alphabets[i+1].baseDistance) {
-			offset := value - info.baseDistance
+	for i, info := range distAlphabets.Alphabets {
+		if value >= info.Base && (i+1 == len(distAlphabets.Alphabets) || value < distAlphabets.Alphabets[i+1].Base) {
+			offset := value - info.Base
 			return i, offset, nil
 		}
 	}
@@ -226,10 +213,10 @@ func (llc *LitLengthCode) FindCode(value int) (code int, offset int, err error) 
 	if value < 3 || value > maxAllowedMatchLength {
 		return 0, 0, errors.New("value is out of range to have a match with RFC length code")
 	}
-	for _, key := range lenAlphabets.keyOrder {
-		if nextInfo, ok := lenAlphabets.alphabets[key+1]; value >= lenAlphabets.alphabets[key].baseLength && (!ok || value < nextInfo.baseLength) {
+	for _, key := range lenAlphabets.KeyOrder {
+		if nextInfo, ok := lenAlphabets.Alphabets[key+1]; value >= lenAlphabets.Alphabets[key].Base && (!ok || value < nextInfo.Base) {
 			// fmt.Printf("[ flate.FindCode ] ")
-			offset := value - lenAlphabets.alphabets[key].baseLength
+			offset := value - lenAlphabets.Alphabets[key].Base
 			return key, offset, nil
 		}
 	}
@@ -411,7 +398,7 @@ func (clc *CodeLengthCode) Encode(items any) ([]int, error) {
 		}
 		codeLengthHuffmanCode = clc.shuffle(codeLengthHuffmanCode)
 		for i, huffman := range codeLengthHuffmanCode {
-			key := rleAlphabets.keyOrder[i]
+			key := rleAlphabets.KeyOrder[i]
 			fmt.Printf("[ flate.CodeLengthCode.Encode ] RLECode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", key, huffman.GetValue(), huffman.GetLength())
 		}
 		return findLengthBoundary(codeLengthHuffmanCode, 3, 7)
@@ -420,7 +407,7 @@ func (clc *CodeLengthCode) Encode(items any) ([]int, error) {
 
 func (clc *CodeLengthCode) shuffle(code []huffman.CanonicalHuffman) []huffman.CanonicalHuffman {
 	var huffmanLengths []huffman.CanonicalHuffman
-	for _, key := range rleAlphabets.keyOrder {
+	for _, key := range rleAlphabets.KeyOrder {
 		huffmanLengths = append(huffmanLengths, code[key])
 	}
 	return huffmanLengths
@@ -475,9 +462,9 @@ func (cw *CompressionWriter) compress(content []byte) error {
 		condensedHuff := newCodeLengthCode.CondensedHuffman[code.RLECode]
 		fmt.Printf("[ flate.CompressionWriter.compress ] Condensed -- RLECode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", code.RLECode, condensedHuff.GetValue(), condensedHuff.GetLength())
 		cw.writeCompressedContent(uint32(condensedHuff.GetValue()), uint(condensedHuff.GetLength()))
-		if rleAlphabets.alphabets[code.RLECode].extraBits > 0 {
-			fmt.Printf("[ flate.CompressionWriter.compress ] Condensed -- RLECode: %v, Offset: %v --- bitlength: %v\n", code.RLECode, code.Offset, rleAlphabets.alphabets[code.RLECode].extraBits)
-			cw.writeCompressedContent(uint32(code.Offset), uint(rleAlphabets.alphabets[code.RLECode].extraBits))
+		if rleAlphabets.Alphabets[code.RLECode].ExtraBits > 0 {
+			fmt.Printf("[ flate.CompressionWriter.compress ] Condensed -- RLECode: %v, Offset: %v --- bitlength: %v\n", code.RLECode, code.Offset, rleAlphabets.Alphabets[code.RLECode].ExtraBits)
+			cw.writeCompressedContent(uint32(code.Offset), uint(rleAlphabets.Alphabets[code.RLECode].ExtraBits))
 		}
 	}
 	for _, token := range tokens {
@@ -489,16 +476,16 @@ func (cw *CompressionWriter) compress(content []byte) error {
 			litLenHuff := newLitLengthCode.LitLengthHuffman[token.LengthCode]
 			fmt.Printf("[ flate.CompressionWriter.compress ] Length: %v, LengthCode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", token.Length, token.LengthCode, litLenHuff.GetValue(), litLenHuff.GetLength())
 			cw.writeCompressedContent(uint32(litLenHuff.GetValue()), uint(litLenHuff.GetLength()))
-			if lenAlphabets.alphabets[token.LengthCode].extraBits > 0 {
-				fmt.Printf("[ flate.CompressionWriter.compress ] Length: %v, LengthCode: %v, Offset: %v --- bitLength: %v\n", token.Length, litLenHuff.GetValue(), token.LengthOffset, lenAlphabets.alphabets[token.LengthCode].extraBits)
-				cw.writeCompressedContent(uint32(token.LengthOffset), uint(lenAlphabets.alphabets[token.LengthCode].extraBits))
+			if lenAlphabets.Alphabets[token.LengthCode].ExtraBits > 0 {
+				fmt.Printf("[ flate.CompressionWriter.compress ] Length: %v, LengthCode: %v, Offset: %v --- bitLength: %v\n", token.Length, litLenHuff.GetValue(), token.LengthOffset, lenAlphabets.Alphabets[token.LengthCode].ExtraBits)
+				cw.writeCompressedContent(uint32(token.LengthOffset), uint(lenAlphabets.Alphabets[token.LengthCode].ExtraBits))
 			}
 			distHuff := newDistanceCode.DistanceHuffman[token.DistanceCode]
 			fmt.Printf("[ flate.CompressionWriter.compress ] Distance: %v, DistanceCode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", token.Distance, token.DistanceCode, distHuff.GetValue(), distHuff.GetLength())
 			cw.writeCompressedContent(uint32(distHuff.GetValue()), uint(distHuff.GetLength()))
-			if distAlphabets.alphabets[token.DistanceCode].extraBits > 0 {
-				fmt.Printf("[ flate.CompressionWriter.compress ] Distance: %v, DistanceCode: %v, Offset: %v --- bitLength: %v\n", token.Distance, token.DistanceCode, token.DistanceOffset, distAlphabets.alphabets[token.DistanceCode].extraBits)
-				cw.writeCompressedContent(uint32(token.DistanceOffset), uint(distAlphabets.alphabets[token.DistanceCode].extraBits))
+			if distAlphabets.Alphabets[token.DistanceCode].ExtraBits > 0 {
+				fmt.Printf("[ flate.CompressionWriter.compress ] Distance: %v, DistanceCode: %v, Offset: %v --- bitLength: %v\n", token.Distance, token.DistanceCode, token.DistanceOffset, distAlphabets.Alphabets[token.DistanceCode].ExtraBits)
+				cw.writeCompressedContent(uint32(token.DistanceOffset), uint(distAlphabets.Alphabets[token.DistanceCode].ExtraBits))
 			}
 		}
 	}
