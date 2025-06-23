@@ -147,6 +147,14 @@ func (dw *DecompressionWriter) decompress() error {
 			return err
 		}
 	}
+	// Now I have built all the huffman tree
+	// Read Token, the huffman code is decoded.
+	if tokens, err := ReadTokens(dataReader, newLitLengthCode, newDistanceCode); err != nil {
+		return err
+	} else {
+		// tokens should be converted into text as the decompressed data
+	}
+	return nil
 }
 
 func readCompressedContent(bb *bitBuffer, inputBuffer io.ReadWriter, nbits uint) (uint32, error) {
@@ -185,6 +193,7 @@ func (llc *LitLengthCode) BuildHuffmanTree(huffmanLengths []uint32) error {
 	}
 	return nil
 }
+
 func (dc *DistanceCode) BuildHuffmanTree(huffmanLengths []uint32) error {
 	if canonicalRoot, err := huffman.BuildCanonicalHuffmanDecoder(huffmanLengths); err != nil {
 		return err
@@ -208,12 +217,12 @@ func (clc *CodeLengthCode) ReadCondensedHuffman(dataReader func(uint) (uint32, e
 	var concatenatedHuffmanLengths []uint32
 	expandRule := func(rule int) ([]uint32, error) {
 		extraBits := rleAlphabets.Alphabets[rule].ExtraBits
-		var offset uint32
+		var offset int
 		if extraBits > 0 {
 			if o, err := dataReader(uint(extraBits)); err != nil {
 				return nil, err
 			} else {
-				offset = o
+				offset = int(o)
 			}
 		}
 		var output []uint32
@@ -224,14 +233,14 @@ func (clc *CodeLengthCode) ReadCondensedHuffman(dataReader func(uint) (uint32, e
 			if length == 0 {
 				return nil, errors.New("incorrectly condensed on empty slice")
 			} else {
-				n := rleAlphabets.Alphabets[rule].Base + int(offset)
+				n := rleAlphabets.Alphabets[rule].Base + offset
 				val := concatenatedHuffmanLengths[length-1]
 				for range n {
 					output = append(output, val)
 				}
 			}
 		} else if rule < 19 {
-			n := rleAlphabets.Alphabets[rule].Base + int(offset)
+			n := rleAlphabets.Alphabets[rule].Base + offset
 			for range n {
 				output = append(output, 0)
 			}
@@ -271,4 +280,79 @@ func TraverseHuffmanTree(dataReader func(uint) (uint32, error), node *huffman.Ca
 			return TraverseHuffmanTree(dataReader, node.Right)
 		}
 	}
+}
+
+func ReadTokens(dataReader func(uint) (uint32, error), newlitLenthCode *LitLengthCode, newDistanceCode *DistanceCode) ([]Token, error) {
+	var tokens []Token
+	decodeLitLenRule := func(rule int) (TokenKind, int, int, error) {
+		extraBits := lenAlphabets.Alphabets[rule].ExtraBits
+		var offset int
+		if extraBits > 0 {
+			if o, err := dataReader(uint(extraBits)); err != nil {
+				return 0, 0, 0, err
+			} else {
+				offset = int(o)
+			}
+		}
+		if rule < 256 {
+			return LiteralToken, rule, 0, nil
+		} else if rule == 256 {
+			return EndOfBlockToken, rule, 0, nil
+		} else if rule < 286 {
+			length := lenAlphabets.Alphabets[rule].Base + offset
+			return MatchToken, length, offset, nil
+		} else {
+			return 0, 0, 0, errors.New("no match found for the rule")
+		}
+	}
+	decodeDistRule := func(rule int) (int, int, error) {
+		extraBits := distAlphabets.Alphabets[rule].ExtraBits
+		var offset int
+		if extraBits > 0 {
+			if o, err := dataReader(uint(extraBits)); err != nil {
+				return 0, 0, err
+			} else {
+				offset = int(o)
+			}
+		}
+		distance := distAlphabets.Alphabets[rule].Base + offset
+		return distance, offset, nil
+	}
+	for true {
+		if rule, err := TraverseHuffmanTree(dataReader, newlitLenthCode.CanonicalRoot); err != nil {
+			return nil, err
+		} else {
+			var token Token
+			if tokenKind, value, lengthOffset, err := decodeLitLenRule(int(rule)); err != nil {
+				return nil, err
+			} else if tokenKind == MatchToken {
+				token = Token{
+					Kind:         tokenKind,
+					Length:       value,
+					LengthCode:   int(rule),
+					LengthOffset: lengthOffset,
+				}
+				if rule, err := TraverseHuffmanTree(dataReader, newDistanceCode.CanonicalRoot); err != nil {
+					return nil, err
+				} else {
+					if distance, distanceOffset, err := decodeDistRule(int(rule)); err != nil {
+						return nil, err
+					} else {
+						token.Distance = distance
+						token.DistanceCode = int(rule)
+						token.DistanceOffset = distanceOffset
+					}
+				}
+			} else if tokenKind == LiteralToken {
+				token = Token{
+					Kind:  tokenKind,
+					Value: byte(value),
+				}
+			} else if tokenKind == EndOfBlockToken {
+				return tokens, nil
+			}
+			tokens = append(tokens, token)
+		}
+	}
+	return nil, errors.New("this line should never be reached")
 }

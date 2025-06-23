@@ -16,6 +16,7 @@ type TokenKind int
 const (
 	LiteralToken TokenKind = iota
 	MatchToken
+	EndOfBlockToken
 )
 
 type Rulebook struct {
