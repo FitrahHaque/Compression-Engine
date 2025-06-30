@@ -44,6 +44,7 @@ var compressionReaderAndWriters = map[string]any{
 var decompressionReaderAndWriters = map[string]any{
 	"huffman": huffman.NewDecompressionReaderAndWriter,
 	"lzss":    lzss.NewDecompressionReaderAndWriter,
+	"flate":   flate.NewDecompressionReaderAndWriter,
 }
 
 func CompressFiles(algorithm string, files []string, fileExtension string, args any) {
@@ -169,10 +170,9 @@ func (d *decompression) init() {
 	switch d.decompressionEngine {
 	case "huffman":
 		d.reader, d.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
-		return
 	case "lzss":
 		d.reader, d.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
-	default:
-		return
+	case "flate":
+		d.reader, d.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
 	}
 }

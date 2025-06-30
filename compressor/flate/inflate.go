@@ -153,8 +153,32 @@ func (dw *DecompressionWriter) decompress() error {
 		return err
 	} else {
 		// tokens should be converted into text as the decompressed data
+		if _, err := dw.core.outputBuffer.Write(DecodeTokens(tokens)); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+func DecodeTokens(tokens []Token) []byte {
+	var output []byte
+	findMatch := func(length, negOffset int) {
+		outputRune := []rune(string(output))
+		currentIdx := len(outputRune)
+		startIdx := currentIdx - negOffset
+		endIdx := startIdx + length
+		match := []byte(string(outputRune[startIdx:endIdx]))
+		output = append(output, match...)
+	}
+	for _, token := range tokens {
+		switch token.Kind {
+		case LiteralToken:
+			output = append(output, token.Value)
+		case MatchToken:
+			findMatch(token.Length, token.Distance)
+		}
+	}
+	return output
 }
 
 func readCompressedContent(bb *bitBuffer, inputBuffer io.ReadWriter, nbits uint) (uint32, error) {
@@ -256,6 +280,7 @@ func (clc *CodeLengthCode) ReadCondensedHuffman(dataReader func(uint) (uint32, e
 			return nil, nil, err
 		} else {
 			concatenatedHuffmanLengths = append(concatenatedHuffmanLengths, lengths...)
+			remaining--
 		}
 	}
 	return concatenatedHuffmanLengths[:HLIT], concatenatedHuffmanLengths[HLIT : HLIT+HDIST], nil
