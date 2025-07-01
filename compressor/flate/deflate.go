@@ -297,6 +297,7 @@ func (clc *CodeLengthCode) FindCode(lengthHuffmanLengths []int) (err error) {
 			} else {
 				return errors.New("such a long sequence of zeros cannot be encoded")
 			}
+			countZero = 0
 		}
 		return nil
 	}
@@ -437,17 +438,20 @@ func (cw *CompressionWriter) compress(content []byte) error {
 	newLitLengthCode := new(LitLengthCode)
 	litLenHuffmanLengths, err := newLitLengthCode.Encode(tokens)
 	fmt.Printf("[ flate.CompressionWriter.compress ] len(litLenHuffmanLengths): %v\n", len(litLenHuffmanLengths))
+	fmt.Printf("[ flate.CompressionWriter.compress ] litLenHuffmanLengths: %v\n", litLenHuffmanLengths)
 	if err != nil {
 		return err
 	}
 	newDistanceCode := new(DistanceCode)
 	distHuffmanLengths, err := newDistanceCode.Encode(tokens)
 	fmt.Printf("[ flate.CompressionWriter.compress ] len(distHuffmanLengths): %v\n", len(distHuffmanLengths))
+	fmt.Printf("[ flate.CompressionWriter.compress ] distHuffmanLengths: %v\n", distHuffmanLengths)
 	if err != nil {
 		return err
 	}
 	concatenatedHuffmanLengths := append(litLenHuffmanLengths, distHuffmanLengths...)
 	fmt.Printf("[ flate.CompressionWriter.compress ] len(concatenatedHuffmanLengths): %v\n", len(concatenatedHuffmanLengths))
+	fmt.Printf("[ flate.CompressionWriter.compress ] concatenatedHuffmanLengths: %v\n", concatenatedHuffmanLengths)
 	newCodeLengthCode := new(CodeLengthCode)
 	codeLengthHuffmanLengths, err := newCodeLengthCode.Encode(concatenatedHuffmanLengths)
 	if err != nil {
@@ -471,6 +475,11 @@ func (cw *CompressionWriter) compress(content []byte) error {
 	for _, codeLen := range codeLengthHuffmanLengths {
 		fmt.Printf("[ flate.CompressionWriter.compress ] RLEHuffmanLength: %v, bits: 3\n", codeLen)
 		cw.writeCompressedContent(uint32(codeLen), 3)
+	}
+	fmt.Printf("[ flate.CompressionWriter.compress ] len(newCodeLengthCode.HuffmanLengthCondensed): %v\n", len(newCodeLengthCode.HuffmanLengthCondensed))
+	fmt.Printf("[ flate.CompressionWriter.compress ] newCodeLengthCode.HuffmanLengthCondensed:\n")
+	for _, code := range newCodeLengthCode.HuffmanLengthCondensed {
+		fmt.Printf("code: %v, offset: %v\n", code.RLECode, code.Offset)
 	}
 	for _, code := range newCodeLengthCode.HuffmanLengthCondensed {
 		condensedHuff := newCodeLengthCode.CondensedHuffman[code.RLECode]
