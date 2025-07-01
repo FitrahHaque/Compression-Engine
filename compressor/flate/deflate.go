@@ -475,7 +475,7 @@ func (cw *CompressionWriter) compress(content []byte) error {
 	for _, code := range newCodeLengthCode.HuffmanLengthCondensed {
 		condensedHuff := newCodeLengthCode.CondensedHuffman[code.RLECode]
 		fmt.Printf("[ flate.CompressionWriter.compress ] Condensed -- RLECode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", code.RLECode, condensedHuff.GetValue(), condensedHuff.GetLength())
-		cw.writeCompressedContent(uint32(condensedHuff.GetValue()), uint(condensedHuff.GetLength()))
+		cw.writeCompressedContent(huffman.Reverse(uint32(condensedHuff.GetValue()), uint32(condensedHuff.GetLength())), uint(condensedHuff.GetLength()))
 		if rleAlphabets.Alphabets[code.RLECode].ExtraBits > 0 {
 			fmt.Printf("[ flate.CompressionWriter.compress ] Condensed -- RLECode: %v, Offset: %v --- bitlength: %v\n", code.RLECode, code.Offset, rleAlphabets.Alphabets[code.RLECode].ExtraBits)
 			cw.writeCompressedContent(uint32(code.Offset), uint(rleAlphabets.Alphabets[code.RLECode].ExtraBits))
@@ -485,18 +485,18 @@ func (cw *CompressionWriter) compress(content []byte) error {
 		if token.Kind == LiteralToken {
 			litLenHuff := newLitLengthCode.LitLengthHuffman[token.Value]
 			fmt.Printf("[ flate.CompressionWriter.compress ] Literal: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", string(token.Value), litLenHuff.GetValue(), litLenHuff.GetLength())
-			cw.writeCompressedContent(uint32(litLenHuff.GetValue()), uint(litLenHuff.GetLength()))
+			cw.writeCompressedContent(huffman.Reverse(uint32(litLenHuff.GetValue()), uint32(litLenHuff.GetLength())), uint(litLenHuff.GetLength()))
 		} else {
 			litLenHuff := newLitLengthCode.LitLengthHuffman[token.LengthCode]
 			fmt.Printf("[ flate.CompressionWriter.compress ] Length: %v, LengthCode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", token.Length, token.LengthCode, litLenHuff.GetValue(), litLenHuff.GetLength())
-			cw.writeCompressedContent(uint32(litLenHuff.GetValue()), uint(litLenHuff.GetLength()))
+			cw.writeCompressedContent(huffman.Reverse(uint32(litLenHuff.GetValue()), uint32(litLenHuff.GetLength())), uint(litLenHuff.GetLength()))
 			if lenAlphabets.Alphabets[token.LengthCode].ExtraBits > 0 {
 				fmt.Printf("[ flate.CompressionWriter.compress ] Length: %v, LengthCode: %v, Offset: %v --- bitLength: %v\n", token.Length, litLenHuff.GetValue(), token.LengthOffset, lenAlphabets.Alphabets[token.LengthCode].ExtraBits)
 				cw.writeCompressedContent(uint32(token.LengthOffset), uint(lenAlphabets.Alphabets[token.LengthCode].ExtraBits))
 			}
 			distHuff := newDistanceCode.DistanceHuffman[token.DistanceCode]
 			fmt.Printf("[ flate.CompressionWriter.compress ] Distance: %v, DistanceCode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", token.Distance, token.DistanceCode, distHuff.GetValue(), distHuff.GetLength())
-			cw.writeCompressedContent(uint32(distHuff.GetValue()), uint(distHuff.GetLength()))
+			cw.writeCompressedContent(huffman.Reverse(uint32(distHuff.GetValue()), uint32(distHuff.GetLength())), uint(distHuff.GetLength()))
 			if distAlphabets.Alphabets[token.DistanceCode].ExtraBits > 0 {
 				fmt.Printf("[ flate.CompressionWriter.compress ] Distance: %v, DistanceCode: %v, Offset: %v --- bitLength: %v\n", token.Distance, token.DistanceCode, token.DistanceOffset, distAlphabets.Alphabets[token.DistanceCode].ExtraBits)
 				cw.writeCompressedContent(uint32(token.DistanceOffset), uint(distAlphabets.Alphabets[token.DistanceCode].ExtraBits))
@@ -514,6 +514,7 @@ func (cw *CompressionWriter) writeCompressedContent(value uint32, nbits uint) er
 	if nbits == 0 {
 		return nil
 	}
+	fmt.Printf("[ flate.CompressionWriter.writeCompressedContent ] value: %0*b, nbits: %v\n", nbits, value, nbits)
 	trimbits := min(nbits, 32-bb.bitsCount)
 	bb.bitsHolder |= (value & ((1 << trimbits) - 1)) << uint32(bb.bitsCount)
 	bb.bitsCount += trimbits
