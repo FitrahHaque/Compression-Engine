@@ -141,7 +141,7 @@ func (cw *CompressionWriter) Write(data []byte) (int, error) {
 	if cw.core.isInputBufferClosed {
 		return 0, errors.New("reading from the original stream for the previous block has not completed yet!")
 	}
-	fmt.Printf("[ flate.CompressionWriter.Write ] data written to inputBuffer\n")
+	// fmt.printf("[ flate.CompressionWriter.Write ] data written to inputBuffer\n")
 	return cw.core.inputBuffer.Write(data)
 }
 
@@ -166,7 +166,7 @@ func NewCompressionReaderAndWriter(btype uint32, bfinal uint32) (io.ReadCloser, 
 	newCompressionCore.bfinal = bfinal
 	newCompressionReader, newCompressionWriter := new(CompressionReader), new(CompressionWriter)
 	newCompressionReader.core, newCompressionWriter.core = newCompressionCore, newCompressionCore
-	fmt.Printf("[ flate.NewCompressionReaderAndWriter ] newCompressionCore: %v\n", newCompressionCore)
+	// fmt.printf("[ flate.NewCompressionReaderAndWriter ] newCompressionCore: %v\n", newCompressionCore)
 	return newCompressionReader, newCompressionWriter
 }
 
@@ -197,18 +197,18 @@ func (dc *DistanceCode) Encode(items any) ([]int, error) {
 			} else {
 				token.DistanceCode, token.DistanceOffset = code, offset
 				symbolFreq[token.DistanceCode]++
-				fmt.Printf("[ flate.DistanceCode.Encode ] Distance: %v --- DistanceCode: %v, DistanceOffset: %v\n", token.Distance, token.DistanceCode, token.DistanceOffset)
+				// fmt.printf("[ flate.DistanceCode.Encode ] Distance: %v --- DistanceCode: %v, DistanceOffset: %v\n", token.Distance, token.DistanceCode, token.DistanceOffset)
 			}
 		}
 	}
 	if distHuffmanCode, err := huffman.BuildCanonicalHuffmanEncoder(symbolFreq, 15); err != nil {
 		return nil, err
 	} else {
-		for i, huffman := range distHuffmanCode {
-			if huffman != nil {
-				fmt.Printf("[ flate.DistanceCode.Encode ] DistanceCode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", i, huffman.GetValue(), huffman.GetLength())
-			}
-		}
+		// for i, huffman := range distHuffmanCode {
+		// 	if huffman != nil {
+		// 		fmt.Printf("[ flate.DistanceCode.Encode ] DistanceCode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", i, huffman.GetValue(), huffman.GetLength())
+		// 	}
+		// }
 		dc.DistanceHuffman = distHuffmanCode
 		return findLengthBoundary(distHuffmanCode, 0, 15)
 	}
@@ -238,14 +238,14 @@ func (llc *LitLengthCode) Encode(items any) ([]int, error) {
 		token := &tokens[i]
 		if token.Kind == LiteralToken {
 			symbolFreq[token.Value]++
-			fmt.Printf("[ flate.LitLengthCode.Encode ] Literal: %v --- Code: %v\n", string(token.Value), token.Value)
+			// fmt.printf("[ flate.LitLengthCode.Encode ] Literal: %v --- Code: %v\n", string(token.Value), token.Value)
 		} else {
 			if code, offset, err := llc.FindCode(token.Length); err != nil {
 				return nil, err
 			} else {
 				token.LengthCode, token.LengthOffset = code, offset
 				symbolFreq[token.LengthCode]++
-				fmt.Printf("[ flate.LitLengthCode.Encode ] Length: %v --- LengthCode: %v, LengthOffset: %v\n", token.Length, token.LengthCode, token.LengthOffset)
+				// fmt.printf("[ flate.LitLengthCode.Encode ] Length: %v --- LengthCode: %v, LengthOffset: %v\n", token.Length, token.LengthCode, token.LengthOffset)
 			}
 		}
 	}
@@ -253,12 +253,12 @@ func (llc *LitLengthCode) Encode(items any) ([]int, error) {
 	if litLenHuffmanCode, err := huffman.BuildCanonicalHuffmanEncoder(symbolFreq, 15); err != nil {
 		return nil, err
 	} else {
-		fmt.Printf("[ flate.LitLengthCode.Encode ] len(litLenHuffmanCode): %v\n", len(litLenHuffmanCode))
-		for i, huff := range litLenHuffmanCode {
-			if huff != nil {
-				fmt.Printf("[ flate.LitLengthCode.Encode ] LengthCode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", i, huff.GetValue(), huff.GetLength())
-			}
-		}
+		// fmt.printf("[ flate.LitLengthCode.Encode ] len(litLenHuffmanCode): %v\n", len(litLenHuffmanCode))
+		// for i, huff := range litLenHuffmanCode {
+		// 	if huff != nil {
+		// 		fmt.printf("[ flate.LitLengthCode.Encode ] LengthCode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", i, huff.GetValue(), huff.GetLength())
+		// 	}
+		// }
 		llc.LitLengthHuffman = litLenHuffmanCode
 		return findLengthBoundary(litLenHuffmanCode, 256, 15)
 	}
@@ -378,10 +378,10 @@ func (clc *CodeLengthCode) FindCode(lengthHuffmanLengths []int) (err error) {
 	if err := resolveCountSame(len(lengthHuffmanLengths) - 1); err != nil {
 		return err
 	}
-	fmt.Printf("[ flate.CodeLengthCode.FindCode ] lengthHuffmanLength: %v\n", lengthHuffmanLengths)
-	for i, condensed := range clc.HuffmanLengthCondensed {
-		fmt.Printf("[ flate.CodeLengthCode.FindCode ] clc.HuffmanLengthCondensed[%v] --- RLECode: %v, Offset: %v\n", i, condensed.RLECode, condensed.Offset)
-	}
+	// fmt.printf("[ flate.CodeLengthCode.FindCode ] lengthHuffmanLength: %v\n", lengthHuffmanLengths)
+	// for i, condensed := range clc.HuffmanLengthCondensed {
+	// 	fmt.Printf("[ flate.CodeLengthCode.FindCode ] clc.HuffmanLengthCondensed[%v] --- RLECode: %v, Offset: %v\n", i, condensed.RLECode, condensed.Offset)
+	// }
 	return nil
 }
 
@@ -402,18 +402,18 @@ func (clc *CodeLengthCode) Encode(items any) ([]int, error) {
 	} else {
 		clc.CondensedHuffman = make([]huffman.CanonicalHuffman, len(codeLengthHuffmanCode))
 		copy(clc.CondensedHuffman, codeLengthHuffmanCode)
-		for i, huffman := range clc.CondensedHuffman {
-			if huffman != nil {
-				fmt.Printf("[ flate.CodeLengthCode.Encode ] RLECode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", i, huffman.GetValue(), huffman.GetLength())
-			}
-		}
+		// for i, huffman := range clc.CondensedHuffman {
+		// 	if huffman != nil {
+		// 		fmt.Printf("[ flate.CodeLengthCode.Encode ] RLECode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", i, huffman.GetValue(), huffman.GetLength())
+		// 	}
+		// }
 		codeLengthHuffmanCode = clc.shuffle(codeLengthHuffmanCode)
-		for i, huffman := range codeLengthHuffmanCode {
-			if huffman != nil {
-				key := rleAlphabets.KeyOrder[i]
-				fmt.Printf("[ flate.CodeLengthCode.Encode ] RLECode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", key, huffman.GetValue(), huffman.GetLength())
-			}
-		}
+		// for i, huffman := range codeLengthHuffmanCode {
+		// 	if huffman != nil {
+		// 		key := rleAlphabets.KeyOrder[i]
+		// 		fmt.Printf("[ flate.CodeLengthCode.Encode ] RLECode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", key, huffman.GetValue(), huffman.GetLength())
+		// 	}
+		// }
 		return findLengthBoundary(codeLengthHuffmanCode, 3, 7)
 	}
 }
@@ -428,7 +428,7 @@ func (clc *CodeLengthCode) shuffle(code []huffman.CanonicalHuffman) []huffman.Ca
 
 func (cw *CompressionWriter) compress(content []byte) error {
 	contentRune := []rune(string(content))
-	fmt.Printf("[ flate.CompressionWriter.compress ] contentString %v\n", string(content))
+	// fmt.printf("[ flate.CompressionWriter.compress ] contentString %v\n", string(content))
 	refChannels := make([]chan lzss.Reference, len(contentRune))
 	lzss.FindMatch(refChannels, contentRune, maxAllowedBackwardDistance, maxAllowedMatchLength)
 	tokens, err := tokeniseLZSS(refChannels)
@@ -437,21 +437,21 @@ func (cw *CompressionWriter) compress(content []byte) error {
 	}
 	newLitLengthCode := new(LitLengthCode)
 	litLenHuffmanLengths, err := newLitLengthCode.Encode(tokens)
-	fmt.Printf("[ flate.CompressionWriter.compress ] len(litLenHuffmanLengths): %v\n", len(litLenHuffmanLengths))
-	fmt.Printf("[ flate.CompressionWriter.compress ] litLenHuffmanLengths: %v\n", litLenHuffmanLengths)
+	// fmt.printf("[ flate.CompressionWriter.compress ] len(litLenHuffmanLengths): %v\n", len(litLenHuffmanLengths))
+	// fmt.printf("[ flate.CompressionWriter.compress ] litLenHuffmanLengths: %v\n", litLenHuffmanLengths)
 	if err != nil {
 		return err
 	}
 	newDistanceCode := new(DistanceCode)
 	distHuffmanLengths, err := newDistanceCode.Encode(tokens)
-	fmt.Printf("[ flate.CompressionWriter.compress ] len(distHuffmanLengths): %v\n", len(distHuffmanLengths))
-	fmt.Printf("[ flate.CompressionWriter.compress ] distHuffmanLengths: %v\n", distHuffmanLengths)
+	// fmt.printf("[ flate.CompressionWriter.compress ] len(distHuffmanLengths): %v\n", len(distHuffmanLengths))
+	// fmt.printf("[ flate.CompressionWriter.compress ] distHuffmanLengths: %v\n", distHuffmanLengths)
 	if err != nil {
 		return err
 	}
 	concatenatedHuffmanLengths := append(litLenHuffmanLengths, distHuffmanLengths...)
-	fmt.Printf("[ flate.CompressionWriter.compress ] len(concatenatedHuffmanLengths): %v\n", len(concatenatedHuffmanLengths))
-	fmt.Printf("[ flate.CompressionWriter.compress ] concatenatedHuffmanLengths: %v\n", concatenatedHuffmanLengths)
+	// fmt.printf("[ flate.CompressionWriter.compress ] len(concatenatedHuffmanLengths): %v\n", len(concatenatedHuffmanLengths))
+	// fmt.printf("[ flate.CompressionWriter.compress ] concatenatedHuffmanLengths: %v\n", concatenatedHuffmanLengths)
 	newCodeLengthCode := new(CodeLengthCode)
 	codeLengthHuffmanLengths, err := newCodeLengthCode.Encode(concatenatedHuffmanLengths)
 	if err != nil {
@@ -462,58 +462,58 @@ func (cw *CompressionWriter) compress(content []byte) error {
 	HCLEN := len(codeLengthHuffmanLengths) - 4
 	cw.core.lock.Lock()
 	defer cw.core.lock.Unlock()
-	fmt.Printf("[ flate.CompressionWriter.compress ] bfinal: %v, bits: %v\n", cw.core.bfinal, 1)
+	// fmt.printf("[ flate.CompressionWriter.compress ] bfinal: %v, bits: %v\n", cw.core.bfinal, 1)
 	cw.writeCompressedContent(cw.core.bfinal, 1)
-	fmt.Printf("[ flate.CompressionWriter.compress ] btype: %v, bits: %v\n", cw.core.btype, 2)
+	// fmt.printf("[ flate.CompressionWriter.compress ] btype: %v, bits: %v\n", cw.core.btype, 2)
 	cw.writeCompressedContent(cw.core.btype, 2)
-	fmt.Printf("[ flate.CompressionWriter.compress ] HLIT: %v, bits: %v\n", uint32(HLIT), 5)
+	// fmt.printf("[ flate.CompressionWriter.compress ] HLIT: %v, bits: %v\n", uint32(HLIT), 5)
 	cw.writeCompressedContent(uint32(HLIT), 5)
-	fmt.Printf("[ flate.CompressionWriter.compress ] HDIST: %v, bits: %v\n", uint32(HDIST), 5)
+	// fmt.printf("[ flate.CompressionWriter.compress ] HDIST: %v, bits: %v\n", uint32(HDIST), 5)
 	cw.writeCompressedContent(uint32(HDIST), 5)
-	fmt.Printf("[ flate.CompressionWriter.compress ] HCLEN: %v, bits: %v\n", uint32(HCLEN), 4)
+	// fmt.printf("[ flate.CompressionWriter.compress ] HCLEN: %v, bits: %v\n", uint32(HCLEN), 4)
 	cw.writeCompressedContent(uint32(HCLEN), 4)
 	for _, codeLen := range codeLengthHuffmanLengths {
-		fmt.Printf("[ flate.CompressionWriter.compress ] RLEHuffmanLength: %v, bits: 3\n", codeLen)
+		// fmt.printf("[ flate.CompressionWriter.compress ] RLEHuffmanLength: %v, bits: 3\n", codeLen)
 		cw.writeCompressedContent(uint32(codeLen), 3)
 	}
-	fmt.Printf("[ flate.CompressionWriter.compress ] len(newCodeLengthCode.HuffmanLengthCondensed): %v\n", len(newCodeLengthCode.HuffmanLengthCondensed))
-	fmt.Printf("[ flate.CompressionWriter.compress ] newCodeLengthCode.HuffmanLengthCondensed:\n")
-	for _, code := range newCodeLengthCode.HuffmanLengthCondensed {
-		fmt.Printf("code: %v, offset: %v\n", code.RLECode, code.Offset)
-	}
+	// fmt.printf("[ flate.CompressionWriter.compress ] len(newCodeLengthCode.HuffmanLengthCondensed): %v\n", len(newCodeLengthCode.HuffmanLengthCondensed))
+	// fmt.printf("[ flate.CompressionWriter.compress ] newCodeLengthCode.HuffmanLengthCondensed:\n")
+	// for _, code := range newCodeLengthCode.HuffmanLengthCondensed {
+	// 	fmt.Printf("code: %v, offset: %v\n", code.RLECode, code.Offset)
+	// }
 	for _, code := range newCodeLengthCode.HuffmanLengthCondensed {
 		condensedHuff := newCodeLengthCode.CondensedHuffman[code.RLECode]
-		fmt.Printf("[ flate.CompressionWriter.compress ] Condensed -- RLECode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", code.RLECode, condensedHuff.GetValue(), condensedHuff.GetLength())
+		// fmt.printf("[ flate.CompressionWriter.compress ] Condensed -- RLECode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", code.RLECode, condensedHuff.GetValue(), condensedHuff.GetLength())
 		cw.writeCompressedContent(huffman.Reverse(uint32(condensedHuff.GetValue()), uint32(condensedHuff.GetLength())), uint(condensedHuff.GetLength()))
 		if rleAlphabets.Alphabets[code.RLECode].ExtraBits > 0 {
-			fmt.Printf("[ flate.CompressionWriter.compress ] Condensed -- RLECode: %v, Offset: %v --- bitlength: %v\n", code.RLECode, code.Offset, rleAlphabets.Alphabets[code.RLECode].ExtraBits)
+			// fmt.printf("[ flate.CompressionWriter.compress ] Condensed -- RLECode: %v, Offset: %v --- bitlength: %v\n", code.RLECode, code.Offset, rleAlphabets.Alphabets[code.RLECode].ExtraBits)
 			cw.writeCompressedContent(uint32(code.Offset), uint(rleAlphabets.Alphabets[code.RLECode].ExtraBits))
 		}
 	}
 	for _, token := range tokens {
 		if token.Kind == LiteralToken {
 			litLenHuff := newLitLengthCode.LitLengthHuffman[token.Value]
-			fmt.Printf("[ flate.CompressionWriter.compress ] Literal: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", string(token.Value), litLenHuff.GetValue(), litLenHuff.GetLength())
+			// fmt.printf("[ flate.CompressionWriter.compress ] Literal: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", string(token.Value), litLenHuff.GetValue(), litLenHuff.GetLength())
 			cw.writeCompressedContent(huffman.Reverse(uint32(litLenHuff.GetValue()), uint32(litLenHuff.GetLength())), uint(litLenHuff.GetLength()))
 		} else {
 			litLenHuff := newLitLengthCode.LitLengthHuffman[token.LengthCode]
-			fmt.Printf("[ flate.CompressionWriter.compress ] Length: %v, LengthCode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", token.Length, token.LengthCode, litLenHuff.GetValue(), litLenHuff.GetLength())
+			// fmt.printf("[ flate.CompressionWriter.compress ] Length: %v, LengthCode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", token.Length, token.LengthCode, litLenHuff.GetValue(), litLenHuff.GetLength())
 			cw.writeCompressedContent(huffman.Reverse(uint32(litLenHuff.GetValue()), uint32(litLenHuff.GetLength())), uint(litLenHuff.GetLength()))
 			if lenAlphabets.Alphabets[token.LengthCode].ExtraBits > 0 {
-				fmt.Printf("[ flate.CompressionWriter.compress ] Length: %v, LengthCode: %v, Offset: %v --- bitLength: %v\n", token.Length, litLenHuff.GetValue(), token.LengthOffset, lenAlphabets.Alphabets[token.LengthCode].ExtraBits)
+				// fmt.printf("[ flate.CompressionWriter.compress ] Length: %v, LengthCode: %v, Offset: %v --- bitLength: %v\n", token.Length, litLenHuff.GetValue(), token.LengthOffset, lenAlphabets.Alphabets[token.LengthCode].ExtraBits)
 				cw.writeCompressedContent(uint32(token.LengthOffset), uint(lenAlphabets.Alphabets[token.LengthCode].ExtraBits))
 			}
 			distHuff := newDistanceCode.DistanceHuffman[token.DistanceCode]
-			fmt.Printf("[ flate.CompressionWriter.compress ] Distance: %v, DistanceCode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", token.Distance, token.DistanceCode, distHuff.GetValue(), distHuff.GetLength())
+			// fmt.printf("[ flate.CompressionWriter.compress ] Distance: %v, DistanceCode: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", token.Distance, token.DistanceCode, distHuff.GetValue(), distHuff.GetLength())
 			cw.writeCompressedContent(huffman.Reverse(uint32(distHuff.GetValue()), uint32(distHuff.GetLength())), uint(distHuff.GetLength()))
 			if distAlphabets.Alphabets[token.DistanceCode].ExtraBits > 0 {
-				fmt.Printf("[ flate.CompressionWriter.compress ] Distance: %v, DistanceCode: %v, Offset: %v --- bitLength: %v\n", token.Distance, token.DistanceCode, token.DistanceOffset, distAlphabets.Alphabets[token.DistanceCode].ExtraBits)
+				// fmt.printf("[ flate.CompressionWriter.compress ] Distance: %v, DistanceCode: %v, Offset: %v --- bitLength: %v\n", token.Distance, token.DistanceCode, token.DistanceOffset, distAlphabets.Alphabets[token.DistanceCode].ExtraBits)
 				cw.writeCompressedContent(uint32(token.DistanceOffset), uint(distAlphabets.Alphabets[token.DistanceCode].ExtraBits))
 			}
 		}
 	}
 	eobHuff := newLitLengthCode.LitLengthHuffman[256]
-	fmt.Printf("[ flate.CompressionWriter.compress ] EOB: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", 256, eobHuff.GetValue(), eobHuff.GetLength())
+	// fmt.printf("[ flate.CompressionWriter.compress ] EOB: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", 256, eobHuff.GetValue(), eobHuff.GetLength())
 	cw.writeCompressedContent(huffman.Reverse(uint32(eobHuff.GetValue()), uint32(eobHuff.GetLength())), uint(eobHuff.GetLength()))
 	return cw.flushAlign()
 }
@@ -523,7 +523,7 @@ func (cw *CompressionWriter) writeCompressedContent(value uint32, nbits uint) er
 	if nbits == 0 {
 		return nil
 	}
-	fmt.Printf("[ flate.CompressionWriter.writeCompressedContent ] value: %0*b, nbits: %v\n", nbits, value, nbits)
+	// fmt.printf("[ flate.CompressionWriter.writeCompressedContent ] value: %0*b, nbits: %v\n", nbits, value, nbits)
 	trimbits := min(nbits, 32-bb.bitsCount)
 	bb.bitsHolder |= (value & ((1 << trimbits) - 1)) << uint32(bb.bitsCount)
 	bb.bitsCount += trimbits
@@ -532,7 +532,7 @@ func (cw *CompressionWriter) writeCompressedContent(value uint32, nbits uint) er
 		if _, err := cw.core.outputBuffer.Write([]byte{lowestByte}); err != nil {
 			return err
 		}
-		fmt.Printf("[ flate.writeCompressedContent ] Emitted lowestByte: %08b\n", lowestByte)
+		// fmt.printf("[ flate.writeCompressedContent ] Emitted lowestByte: %08b\n", lowestByte)
 		bb.bitsHolder >>= 8
 		bb.bitsCount -= 8
 	}
@@ -546,23 +546,23 @@ func (cw *CompressionWriter) flushAlign() error {
 		return errors.New("bits not written to the output buffer yet")
 	}
 	if bb.bitsCount > 0 {
-		fmt.Printf("[ flate.bitBuffer.flushAlign ] pad with %v bits\n", 8-bb.bitsCount)
+		// fmt.printf("[ flate.bitBuffer.flushAlign ] pad with %v bits\n", 8-bb.bitsCount)
 		return cw.writeCompressedContent(0, 8-bb.bitsCount)
 	}
-	fmt.Printf("[ flate.bitBuffer.flushAlign ] no padding needed\n")
+	// fmt.printf("[ flate.bitBuffer.flushAlign ] no padding needed\n")
 	return nil
 }
 
 func tokeniseLZSS(refChannels []chan lzss.Reference) ([]Token, error) {
 	var tokens []Token
 	nextRunesToIgnore := 0
-	for i, channel := range refChannels {
+	for _, channel := range refChannels {
 		ref := <-channel
 		if nextRunesToIgnore > 0 {
 			nextRunesToIgnore--
 		} else if !ref.IsRef || ref.Size < 3 {
 			literalBytes := []byte(string(ref.Value[0]))
-			fmt.Printf("[ flate.tokeniseLZSS ] no match on index %v -- literal: %v\n", i, string(ref.Value[0]))
+			// fmt.printf("[ flate.tokeniseLZSS ] no match on index %v -- literal: %v\n", i, string(ref.Value[0]))
 			for _, literalByte := range literalBytes {
 				token := Token{
 					Kind:  LiteralToken,
@@ -586,7 +586,7 @@ func tokeniseLZSS(refChannels []chan lzss.Reference) ([]Token, error) {
 				Length:   ref.Size,
 				Distance: ref.NegativeOffset,
 			}
-			fmt.Printf("[ flate.tokeniseLZSS ] match on index %v -- Length: %v, Distance: %v\n", i, ref.Size, ref.NegativeOffset)
+			// fmt.printf("[ flate.tokeniseLZSS ] match on index %v -- Length: %v, Distance: %v\n", i, ref.Size, ref.NegativeOffset)
 			tokens = append(tokens, token)
 		}
 	}
@@ -613,6 +613,6 @@ func findLengthBoundary(items []huffman.CanonicalHuffman, threshold, limit int) 
 			length = append(length, info.GetLength())
 		}
 	}
-	fmt.Printf("[ flate.findLengthBoundary ] len(items): %v, len(length): %v\n", len(items), len(length))
+	// fmt.printf("[ flate.findLengthBoundary ] len(items): %v, len(length): %v\n", len(items), len(length))
 	return length, nil
 }

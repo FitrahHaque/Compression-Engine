@@ -48,7 +48,7 @@ var decompressionReaderAndWriters = map[string]any{
 }
 
 func CompressFiles(algorithm string, files []string, fileExtension string, args any) {
-	fmt.Printf("[ engine.CompressFiles ] args: %v\n", args)
+	// fmt.Printf("[ engine.CompressFiles ] args: %v\n", args)
 	for _, file := range files {
 		compressFile(algorithm, file, file+fileExtension, args)
 	}
@@ -83,7 +83,7 @@ func compress(algorithm string, fileContent []byte, outputFileName string, args 
 	if err = compressor.reader.Close(); err != nil {
 		panic(err)
 	}
-	fmt.Printf("[ engine.compress ] compressed content(in bytes):\n%v\n", content)
+	// fmt.Printf("[ engine.compress ] compressed content(in bytes):\n%v\n", content)
 	if err = os.WriteFile(outputFileName, content, 0644); err != nil {
 		panic(err)
 	}
@@ -108,7 +108,7 @@ func (c *compression) init(params any) {
 		if args, ok := params.(FlateArgs); !ok {
 			panic("arguments missing for flate")
 		} else {
-			fmt.Printf("[ engine.compression.init ] case flate selected with args: %v\n", args)
+			// fmt.Printf("[ engine.compression.init ] case flate selected with args: %v\n", args)
 			c.reader, c.writer = newReaderAndWriterFunc.(func(uint32, uint32) (io.ReadCloser, io.WriteCloser))(args.Btype, args.Bfinal)
 		}
 	default:

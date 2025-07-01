@@ -55,7 +55,7 @@ func (dw *DecompressionWriter) Write(data []byte) (int, error) {
 	if dw.core.isInputBufferClosed {
 		return 0, errors.New("reading from the compression stream for the previous block has not completed yet!")
 	}
-	fmt.Printf("[ flate.DecompressionWriter.Write ] data written to the inputBuffer\n")
+	// fmt.Printf("[ flate.DecompressionWriter.Write ] data written to the inputBuffer\n")
 	return dw.core.inputBuffer.Write(data)
 }
 
@@ -74,7 +74,7 @@ func NewDecompressionReaderAndWriter() (io.ReadCloser, io.WriteCloser) {
 	newDecompressionCore.readChannel = make(chan byte)
 	newDecompressionReader, newDecompressionWriter := new(DecompressionReader), new(DecompressionWriter)
 	newDecompressionReader.core, newDecompressionWriter.core = newDecompressionCore, newDecompressionCore
-	fmt.Printf("[ flate.NewDecompressionReaderAndWriter ] newDecompressionCore: %v\n", newDecompressionCore)
+	// fmt.Printf("[ flate.NewDecompressionReaderAndWriter ] newDecompressionCore: %v\n", newDecompressionCore)
 	return newDecompressionReader, newDecompressionWriter
 }
 
@@ -125,7 +125,7 @@ func (dw *DecompressionWriter) decompress() error {
 	HDIST += 1
 	HCLEN += 4
 
-	fmt.Printf("[ flate.DecompressionWriter.decompress ] HLIT: %v, HDIST: %v, HCLEN: %v\n", HLIT, HDIST, HCLEN)
+	// fmt.Printf("[ flate.DecompressionWriter.decompress ] HLIT: %v, HDIST: %v, HCLEN: %v\n", HLIT, HDIST, HCLEN)
 
 	// Code-Length Huffman Length
 	var codeLengthHuffmanLengths []uint32
@@ -136,7 +136,7 @@ func (dw *DecompressionWriter) decompress() error {
 			codeLengthHuffmanLengths = append(codeLengthHuffmanLengths, input)
 		}
 	}
-	fmt.Printf("[ flate.DecompressionWriter.decompress ] codeLengthHuffmanLengths: %v\n", codeLengthHuffmanLengths)
+	// fmt.Printf("[ flate.DecompressionWriter.decompress ] codeLengthHuffmanLengths: %v\n", codeLengthHuffmanLengths)
 	newCodeLengthCode := new(CodeLengthCode)
 	newCodeLengthCode.BuildHuffmanTree(codeLengthHuffmanLengths)
 
@@ -146,8 +146,8 @@ func (dw *DecompressionWriter) decompress() error {
 	if litLenHuffmanLengths, distHuffmanLengths, err := newCodeLengthCode.ReadCondensedHuffman(dataReader, HLIT, HDIST); err != nil {
 		return err
 	} else {
-		fmt.Printf("[ flate.DecompressionWriter.decompress ] len(litLenHuffmanLengths): %v, len(distHuffmanLengths): %v\n", len(litLenHuffmanLengths), len(distHuffmanLengths))
-		fmt.Printf("[ flate.DecompressionWriter.decompress ] litLenHuffmanLengths: %v, distHuffmanLengths: %v\n", litLenHuffmanLengths, distHuffmanLengths)
+		// fmt.printf("[ flate.DecompressionWriter.decompress ] len(litLenHuffmanLengths): %v, len(distHuffmanLengths): %v\n", len(litLenHuffmanLengths), len(distHuffmanLengths))
+		// fmt.printf("[ flate.DecompressionWriter.decompress ] litLenHuffmanLengths: %v, distHuffmanLengths: %v\n", litLenHuffmanLengths, distHuffmanLengths)
 		if err := newLitLengthCode.BuildHuffmanTree(litLenHuffmanLengths); err != nil {
 			return err
 		}
@@ -162,7 +162,7 @@ func (dw *DecompressionWriter) decompress() error {
 	} else {
 		// tokens should be converted into text as the decompressed data
 		data := DecodeTokens(tokens)
-		fmt.Printf("[ flate.DecompressionWriter.decompress ] decompressed data: %v\n", string(data))
+		// fmt.printf("[ flate.DecompressionWriter.decompress ] decompressed data: %v\n", string(data))
 		if _, err := dw.core.outputBuffer.Write(data); err != nil {
 			return err
 		}
@@ -178,7 +178,7 @@ func DecodeTokens(tokens []Token) []byte {
 		startIdx := currentIdx - negOffset
 		endIdx := startIdx + length
 		match := []byte(string(outputSoFarRune[startIdx:endIdx]))
-		fmt.Printf("[ flate.DecodeTokens.findMatch ] outputSoFar: %v\nmatch: %v\n", string(output), string(match))
+		// fmt.printf("[ flate.DecodeTokens.findMatch ] outputSoFar: %v\nmatch: %v\n", string(output), string(match))
 		output = append(output, match...)
 	}
 	for _, token := range tokens {
@@ -247,18 +247,18 @@ func (clc *CodeLengthCode) reshuffle(huffmanLengths []uint32) []uint32 {
 		key := rleAlphabets.KeyOrder[i]
 		lengths[key] = length
 	}
-	for i, length := range lengths {
-		if length != 0 {
-			fmt.Printf("[ flate.CodeLengthCode.reshuffle ] RLECode: %v --- HuffmanCodeLength: %v\n", i, length)
-		}
-	}
+	// for i, length := range lengths {
+	// 	if length != 0 {
+	// 		fmt.printf("[ flate.CodeLengthCode.reshuffle ] RLECode: %v --- HuffmanCodeLength: %v\n", i, length)
+	// 	}
+	// }
 	return lengths
 }
 
 func (clc *CodeLengthCode) ReadCondensedHuffman(dataReader func(uint) (uint32, error), HLIT, HDIST uint32) ([]uint32, []uint32, error) {
 	total := HLIT + HDIST
 	var concatenatedHuffmanLengths []uint32
-	fmt.Printf("[ flate.CodeLengthCode.ReadCondensedHuffman.expandRule ] rule:\n")
+	// fmt.printf("[ flate.CodeLengthCode.ReadCondensedHuffman.expandRule ] rule:\n")
 	expandRule := func(rule int) ([]uint32, error) {
 		extraBits := rleAlphabets.Alphabets[rule].ExtraBits
 		var offset int
@@ -269,7 +269,7 @@ func (clc *CodeLengthCode) ReadCondensedHuffman(dataReader func(uint) (uint32, e
 				offset = int(o)
 			}
 		}
-		fmt.Printf("code: %v, offset: %v\n", rule, offset)
+		// fmt.Printf("code: %v, offset: %v\n", rule, offset)
 		var output []uint32
 		if rule < 16 {
 			return []uint32{uint32(rule)}, nil
@@ -305,9 +305,9 @@ func (clc *CodeLengthCode) ReadCondensedHuffman(dataReader func(uint) (uint32, e
 			concatenatedHuffmanLengths = append(concatenatedHuffmanLengths, lengths...)
 		}
 	}
-	fmt.Printf("[ flate.CodeLengthCode.ReadCondensedHuffman ] len(Rules): %v\n", cnt)
-	fmt.Printf("[ flate.CodeLengthCode.ReadCondensedHuffman ] len(concatenatedHUffmanLengths): %v\n", len(concatenatedHuffmanLengths))
-	fmt.Printf("[ flate.CodeLengthCode.ReadCondensedHuffman ] concatenatedHUffmanLengths: %v\n", concatenatedHuffmanLengths)
+	// fmt.printf("[ flate.CodeLengthCode.ReadCondensedHuffman ] len(Rules): %v\n", cnt)
+	// fmt.printf("[ flate.CodeLengthCode.ReadCondensedHuffman ] len(concatenatedHUffmanLengths): %v\n", len(concatenatedHuffmanLengths))
+	// fmt.printf("[ flate.CodeLengthCode.ReadCondensedHuffman ] concatenatedHUffmanLengths: %v\n", concatenatedHuffmanLengths)
 	return concatenatedHuffmanLengths[:HLIT], concatenatedHuffmanLengths[HLIT : HLIT+HDIST], nil
 }
 
@@ -410,7 +410,7 @@ func ReadTokens(dataReader func(uint) (uint32, error), newlitLenthCode *LitLengt
 func traceTree(node *huffman.CanonicalHuffmanNode, code uint32) {
 	if node.IsLeaf {
 		// code = huffman.Reverse(code, uint32(node.Item.GetLength()))
-		fmt.Printf("[ flate.traceTree ] symbol: %v ---- huffmanCode: %v, huffmanCodeLength: %v\n", node.Item.GetValue(), code, node.Item.GetLength())
+		// fmt.Printf("[ flate.traceTree ] symbol: %v ---- huffmanCode: %v, huffmanCodeLength: %v\n", node.Item.GetValue(), code, node.Item.GetLength())
 		return
 	}
 	if node.Left != nil {

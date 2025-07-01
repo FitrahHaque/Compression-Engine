@@ -172,11 +172,11 @@ func BuildCanonicalHuffmanEncoder(symbolFreq []int, lengthLimit int) ([]Canonica
 	})
 	nextBaseCode := make([]int, maxLength+1)
 	code := 0
-	fmt.Printf("[ BuildCanonicalHuffmanTree ] length: 0, count: %v\n", lengthCounts[0])
+	// fmt.Printf("[ BuildCanonicalHuffmanTree ] length: 0, count: %v\n", lengthCounts[0])
 	for i := 1; i < len(lengthCounts); i++ {
 		code = (code + lengthCounts[i-1]) << 1
 		nextBaseCode[i] = code
-		fmt.Printf("[ BuildCanonicalHuffmanTree ] length: %v, count: %v, nextBaseCode: %v\n", i, lengthCounts[i], nextBaseCode[i])
+		// fmt.Printf("[ BuildCanonicalHuffmanTree ] length: %v, count: %v, nextBaseCode: %v\n", i, lengthCounts[i], nextBaseCode[i])
 	}
 	output := make([]CanonicalHuffman, len(symbolFreq))
 	for _, info := range order {
@@ -257,7 +257,7 @@ func buildCanonicalHuffmanTree(node *CanonicalHuffmanNode, lengthRemaining uint3
 	if lengthRemaining == 0 {
 		node.Item = item
 		node.IsLeaf = true
-		fmt.Printf("[ huffman.buildCanonicalHuffmanTree ] Leaf Item ---> Symbol: %v, Length: %v\n", item.GetValue(), item.GetLength())
+		// fmt.Printf("[ huffman.buildCanonicalHuffmanTree ] Leaf Item ---> Symbol: %v, Length: %v\n", item.GetValue(), item.GetLength())
 		return
 	}
 	if node.IsLeaf {
