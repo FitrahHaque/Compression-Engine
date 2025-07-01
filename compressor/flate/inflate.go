@@ -305,7 +305,7 @@ func (clc *CodeLengthCode) ReadCondensedHuffman(dataReader func(uint) (uint32, e
 			concatenatedHuffmanLengths = append(concatenatedHuffmanLengths, lengths...)
 		}
 	}
-	fmt.Printf("[  flate.CodeLengthCode.ReadCondensedHuffman ] len(Rules): %v\n", cnt)
+	fmt.Printf("[ flate.CodeLengthCode.ReadCondensedHuffman ] len(Rules): %v\n", cnt)
 	fmt.Printf("[ flate.CodeLengthCode.ReadCondensedHuffman ] len(concatenatedHUffmanLengths): %v\n", len(concatenatedHuffmanLengths))
 	fmt.Printf("[ flate.CodeLengthCode.ReadCondensedHuffman ] concatenatedHUffmanLengths: %v\n", concatenatedHuffmanLengths)
 	return concatenatedHuffmanLengths[:HLIT], concatenatedHuffmanLengths[HLIT : HLIT+HDIST], nil

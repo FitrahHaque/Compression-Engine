@@ -514,7 +514,7 @@ func (cw *CompressionWriter) compress(content []byte) error {
 	}
 	eobHuff := newLitLengthCode.LitLengthHuffman[256]
 	fmt.Printf("[ flate.CompressionWriter.compress ] EOB: %v --- HuffmanCode: %v, HuffmanCodeLength: %v\n", 256, eobHuff.GetValue(), eobHuff.GetLength())
-	cw.writeCompressedContent(uint32(eobHuff.GetValue()), uint(eobHuff.GetLength()))
+	cw.writeCompressedContent(huffman.Reverse(uint32(eobHuff.GetValue()), uint32(eobHuff.GetLength())), uint(eobHuff.GetLength()))
 	return cw.flushAlign()
 }
 
