@@ -3,6 +3,7 @@ package flate
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 
@@ -54,6 +55,7 @@ func (dw *DecompressionWriter) Write(data []byte) (int, error) {
 	if dw.core.isInputBufferClosed {
 		return 0, errors.New("reading from the compression stream for the previous block has not completed yet!")
 	}
+	fmt.Printf("[ flate.DecompressionWriter.Write ] data written to the inputBuffer\n")
 	return dw.core.inputBuffer.Write(data)
 }
 
@@ -72,6 +74,7 @@ func NewDecompressionReaderAndWriter() (io.ReadCloser, io.WriteCloser) {
 	newDecompressionCore.readChannel = make(chan byte)
 	newDecompressionReader, newDecompressionWriter := new(DecompressionReader), new(DecompressionWriter)
 	newDecompressionReader.core, newDecompressionWriter.core = newDecompressionCore, newDecompressionCore
+	fmt.Printf("[ flate.NewDecompressionReaderAndWriter ] newDecompressionCore: %v\n", newDecompressionCore)
 	return newDecompressionReader, newDecompressionWriter
 }
 
@@ -122,6 +125,8 @@ func (dw *DecompressionWriter) decompress() error {
 	HDIST += 1
 	HCLEN += 4
 
+	fmt.Printf("[ flate.DecompressionWriter.decompress ] HLIT: %v, HDIST: %v, HCLEN: %v\n", HLIT, HDIST, HCLEN)
+
 	// Code-Length Huffman Length
 	var codeLengthHuffmanLengths []uint32
 	for range HCLEN {
@@ -131,6 +136,7 @@ func (dw *DecompressionWriter) decompress() error {
 			codeLengthHuffmanLengths = append(codeLengthHuffmanLengths, input)
 		}
 	}
+	fmt.Printf("[ flate.DecompressionWriter.decompress ] codeLengthHuffmanLengths: %v\n", codeLengthHuffmanLengths)
 	newCodeLengthCode := new(CodeLengthCode)
 	newCodeLengthCode.BuildHuffmanTree(codeLengthHuffmanLengths)
 
@@ -140,6 +146,7 @@ func (dw *DecompressionWriter) decompress() error {
 	if litLenHuffmanLengths, distHuffmanLengths, err := newCodeLengthCode.ReadCondensedHuffman(dataReader, HLIT, HDIST); err != nil {
 		return err
 	} else {
+		fmt.Printf("[ flate.DecompressionWriter.decompress ] litLenHuffmanLengths: %v, distHuffmanLengths: %v\n", litLenHuffmanLengths, distHuffmanLengths)
 		if err := newLitLengthCode.BuildHuffmanTree(litLenHuffmanLengths); err != nil {
 			return err
 		}
@@ -153,7 +160,9 @@ func (dw *DecompressionWriter) decompress() error {
 		return err
 	} else {
 		// tokens should be converted into text as the decompressed data
-		if _, err := dw.core.outputBuffer.Write(DecodeTokens(tokens)); err != nil {
+		data := DecodeTokens(tokens)
+		fmt.Printf("[ flate.DecompressionWriter.decompress ] decompressed data: %v\n", string(data))
+		if _, err := dw.core.outputBuffer.Write(data); err != nil {
 			return err
 		}
 	}
@@ -163,11 +172,12 @@ func (dw *DecompressionWriter) decompress() error {
 func DecodeTokens(tokens []Token) []byte {
 	var output []byte
 	findMatch := func(length, negOffset int) {
-		outputRune := []rune(string(output))
-		currentIdx := len(outputRune)
+		outputSoFarRune := []rune(string(output))
+		currentIdx := len(outputSoFarRune)
 		startIdx := currentIdx - negOffset
 		endIdx := startIdx + length
-		match := []byte(string(outputRune[startIdx:endIdx]))
+		match := []byte(string(outputSoFarRune[startIdx:endIdx]))
+		fmt.Printf("[ flate.DecodeTokens.findMatch ] outputSoFar: %v\nmatch: %v\n", string(output), string(match))
 		output = append(output, match...)
 	}
 	for _, token := range tokens {
@@ -232,6 +242,11 @@ func (clc *CodeLengthCode) reshuffle(huffmanLengths []uint32) []uint32 {
 	for i, length := range huffmanLengths {
 		key := rleAlphabets.KeyOrder[i]
 		lengths[key] = length
+	}
+	for i, length := range lengths {
+		if length != 0 {
+			fmt.Printf("[ flate.CodeLengthCode.reshuffle ] RLECode: %v --- HuffmanCodeLength: %v\n", i, length)
+		}
 	}
 	return lengths
 }

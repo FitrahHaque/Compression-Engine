@@ -225,7 +225,7 @@ func BuildCanonicalHuffmanDecoder(lengths []uint32) (*CanonicalHuffmanNode, erro
 		code = (code + lengthCounts[i-1]) << 1
 		nextBaseCode[i] = uint32(code)
 	}
-	var root *CanonicalHuffmanNode
+	root := &CanonicalHuffmanNode{}
 	for _, info := range order {
 		item := CanonicalHuffmanDecode{
 			Symbol: info.symbol,
