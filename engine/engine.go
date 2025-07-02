@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/FitrahHaque/Compression-Engine/compressor/flate"
+	gzip "github.com/FitrahHaque/Compression-Engine/compressor/gzip"
 	"github.com/FitrahHaque/Compression-Engine/compressor/huffman"
 	"github.com/FitrahHaque/Compression-Engine/compressor/lzss"
 )
@@ -16,9 +17,15 @@ var Engines = [...]string{
 	"huffman",
 	"lzss",
 	"flate",
+	"gzip",
 }
 
 type FlateArgs struct {
+	Bfinal uint32
+	Btype  uint32
+}
+
+type GzipArgs struct {
 	Bfinal uint32
 	Btype  uint32
 }
@@ -39,6 +46,7 @@ var compressionReaderAndWriters = map[string]any{
 	"huffman": huffman.NewCompressionReaderAndWriter,
 	"lzss":    lzss.NewCompressionReaderAndWriter,
 	"flate":   flate.NewCompressionReaderAndWriter,
+	"gzip":    gzip.NewCompressionReaderAndWriter,
 }
 
 var decompressionReaderAndWriters = map[string]any{
@@ -71,12 +79,15 @@ func compress(algorithm string, fileContent []byte, outputFileName string, args 
 	compressor.init(args)
 	var content []byte
 	var err error
-	if _, err := compressor.writer.Write(fileContent); err != nil {
-		panic(err)
-	}
-	if err = compressor.writer.Close(); err != nil {
-		panic(err)
-	}
+	go func() {
+		if _, err := compressor.writer.Write(fileContent); err != nil {
+			panic(err)
+		}
+		if err = compressor.writer.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
 	if content, err = io.ReadAll(compressor.reader); err != nil {
 		panic(err)
 	}
@@ -101,7 +112,6 @@ func (c *compression) init(params any) {
 	switch c.compressionEngine {
 	case "huffman":
 		c.reader, c.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
-		return
 	case "lzss":
 		c.reader, c.writer = newReaderAndWriterFunc.(func(int, int) (io.ReadCloser, io.WriteCloser))(4096, 4096)
 	case "flate":
@@ -111,8 +121,13 @@ func (c *compression) init(params any) {
 			// fmt.Printf("[ engine.compression.init ] case flate selected with args: %v\n", args)
 			c.reader, c.writer = newReaderAndWriterFunc.(func(uint32, uint32) (io.ReadCloser, io.WriteCloser))(args.Btype, args.Bfinal)
 		}
-	default:
-		return
+	case "gzip":
+		if args, ok := params.(GzipArgs); !ok {
+			panic("arguments missing for gzip")
+		} else {
+			r, w := compressionReaderAndWriters["flate"].(func(uint32, uint32) (io.ReadCloser, io.WriteCloser))(args.Btype, args.Bfinal)
+			c.reader, c.writer = newReaderAndWriterFunc.(func(io.ReadCloser, io.WriteCloser) (io.ReadCloser, io.WriteCloser))(r, w)
+		}
 	}
 }
 

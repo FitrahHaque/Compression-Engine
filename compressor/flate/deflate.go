@@ -106,6 +106,7 @@ type bitBuffer struct {
 
 type compressionCore struct {
 	isInputBufferClosed bool
+	cond                *sync.Cond
 	lock                sync.Mutex
 	inputBuffer         io.ReadWriter
 	outputBuffer        io.ReadWriter
@@ -117,8 +118,8 @@ type compressionCore struct {
 func (cr *CompressionReader) Read(data []byte) (int, error) {
 	cr.core.lock.Lock()
 	defer cr.core.lock.Unlock()
-	if !cr.core.isInputBufferClosed {
-		return 0, errors.New("input buffer not closed")
+	for !cr.core.isInputBufferClosed {
+		cr.core.cond.Wait()
 	}
 	return cr.core.outputBuffer.Read(data)
 }
@@ -147,14 +148,22 @@ func (cw *CompressionWriter) Write(data []byte) (int, error) {
 
 func (cw *CompressionWriter) Close() error {
 	cw.core.lock.Lock()
-	cw.core.isInputBufferClosed = true
 	originalData, err := io.ReadAll(cw.core.inputBuffer)
 	cw.core.lock.Unlock()
 	// fmt.Printf("[ DecompressionWriter.Close ] compressedData: %v\n", compressedData)
 	if err != nil {
 		return err
 	}
-	return cw.compress(originalData)
+	if err = cw.compress(originalData); err != nil {
+		return err
+	} else {
+		cw.core.lock.Lock()
+		defer cw.core.lock.Unlock()
+
+		cw.core.isInputBufferClosed = true
+		cw.core.cond.Signal()
+		return nil
+	}
 }
 
 func NewCompressionReaderAndWriter(btype uint32, bfinal uint32) (io.ReadCloser, io.WriteCloser) {
@@ -164,6 +173,7 @@ func NewCompressionReaderAndWriter(btype uint32, bfinal uint32) (io.ReadCloser, 
 	newCompressionCore.isInputBufferClosed = false
 	newCompressionCore.btype = btype
 	newCompressionCore.bfinal = bfinal
+	newCompressionCore.cond = sync.NewCond(&newCompressionCore.lock)
 	newCompressionReader, newCompressionWriter := new(CompressionReader), new(CompressionWriter)
 	newCompressionReader.core, newCompressionWriter.core = newCompressionCore, newCompressionCore
 	// fmt.printf("[ flate.NewCompressionReaderAndWriter ] newCompressionCore: %v\n", newCompressionCore)
