@@ -216,7 +216,7 @@ func (clc *CodeLengthCode) BuildHuffmanTree(huffmanLengths []uint32) error {
 		return err
 	} else {
 		clc.CanonicalRoot = canonicalRoot
-		traceTree(clc.CanonicalRoot, 0)
+		// traceTree(clc.CanonicalRoot, 0)
 	}
 	return nil
 }
@@ -226,7 +226,7 @@ func (llc *LitLengthCode) BuildHuffmanTree(huffmanLengths []uint32) error {
 		return err
 	} else {
 		llc.CanonicalRoot = canonicalRoot
-		traceTree(llc.CanonicalRoot, 0)
+		// traceTree(llc.CanonicalRoot, 0)
 	}
 	return nil
 }
@@ -236,7 +236,7 @@ func (dc *DistanceCode) BuildHuffmanTree(huffmanLengths []uint32) error {
 		return err
 	} else {
 		dc.CanonicalRoot = canonicalRoot
-		traceTree(dc.CanonicalRoot, 0)
+		// traceTree(dc.CanonicalRoot, 0)
 	}
 	return nil
 }
@@ -405,18 +405,4 @@ func ReadTokens(dataReader func(uint) (uint32, error), newlitLenthCode *LitLengt
 		}
 	}
 	return nil, errors.New("this line should never be reached")
-}
-
-func traceTree(node *huffman.CanonicalHuffmanNode, code uint32) {
-	if node.IsLeaf {
-		// code = huffman.Reverse(code, uint32(node.Item.GetLength()))
-		// fmt.Printf("[ flate.traceTree ] symbol: %v ---- huffmanCode: %v, huffmanCodeLength: %v\n", node.Item.GetValue(), code, node.Item.GetLength())
-		return
-	}
-	if node.Left != nil {
-		traceTree(node.Left, code<<1)
-	}
-	if node.Right != nil {
-		traceTree(node.Right, (code<<1)|1)
-	}
 }
