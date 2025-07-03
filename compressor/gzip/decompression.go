@@ -41,12 +41,13 @@ func NewDecompressionReaderAndWriter(flateReader io.ReadCloser, flateWriter io.W
 
 func (dw *DecompressionWriter) Write(p []byte) (int, error) {
 	dw.core.lock.Lock()
-	defer dw.core.lock.Unlock()
+	// defer dw.core.lock.Unlock()
 	if !dw.core.IsHeaderParsed {
 		// header := p[:10]
 		dw.core.IsHeaderParsed = true
 		p = p[10:]
 	}
+	dw.core.lock.Unlock()
 	if len(dw.core.Trailer)+len(p) < 8 {
 		dw.core.Trailer = append(dw.core.Trailer, p...)
 	} else if len(p) < 8 {
@@ -77,8 +78,8 @@ func (dw *DecompressionWriter) Close() error {
 }
 
 func (dr *DecompressionReader) Read(p []byte) (int, error) {
-	dr.core.lock.Lock()
-	defer dr.core.lock.Unlock()
+	// dr.core.lock.Lock()
+	// defer dr.core.lock.Unlock()
 
 	if n, err := dr.core.Reader.Read(p); err != nil {
 		return 0, err

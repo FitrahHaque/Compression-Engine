@@ -80,21 +80,27 @@ func compress(algorithm string, fileContent []byte, outputFileName string, args 
 	compressor.init(args)
 	var content []byte
 	var err error
+	fmt.Printf("[ engine.compress ] 1\n")
 	go func() {
 		if _, err := compressor.writer.Write(fileContent); err != nil {
 			panic(err)
 		}
+		fmt.Printf("[ engine.compress ] 2\n")
 		if err = compressor.writer.Close(); err != nil {
 			panic(err)
 		}
+		fmt.Printf("[ engine.compress ] 3\n")
 	}()
 
+	fmt.Printf("[ engine.compress ] 4\n")
 	if content, err = io.ReadAll(compressor.reader); err != nil {
 		panic(err)
 	}
+	fmt.Printf("[ engine.compress ] 5\n")
 	if err = compressor.reader.Close(); err != nil {
 		panic(err)
 	}
+	fmt.Printf("[ engine.compress ] 6\n")
 	// fmt.Printf("[ engine.compress ] compressed content(in bytes):\n%v\n", content)
 	if err = os.WriteFile(outputFileName, content, 0644); err != nil {
 		panic(err)
