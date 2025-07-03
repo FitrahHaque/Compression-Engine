@@ -155,6 +155,43 @@ func main() {
 				Bfinal: uint32(*bfinalFlateCompress),
 			}
 		}
+		if *algorithmCompress == "gzip" {
+			// fmt.Printf("[ main ] flate algorithm chosen\n")
+			gzipCompressFS := flag.NewFlagSet("gzip", flag.ExitOnError)
+			compressFS.Usage = func() {
+				fmt.Fprintf(os.Stderr, "Usage of %s --compress --algorithm=gzip [OPTIONS] <file(s)>\n", application)
+				fmt.Fprintf(os.Stderr, "Valid commands include:\n\t%s\n", strings.Join([]string{"btype, bfinal, help"}, ", "))
+				fmt.Fprintf(os.Stderr, "Flag:\n")
+				compressFS.PrintDefaults()
+			}
+			btypeGzipCompress := gzipCompressFS.Int("btype", 2, "Which btype to use, choices include: 1, 2, 3")
+			bfinalGzipCompress := gzipCompressFS.Int("bfinal", 0, "Final Block of the compression process")
+			helpGzipCompress := gzipCompressFS.Bool("help", false, "Compress Help")
+			commandArgs = findIntersection(
+				[]string{
+					"--btype",
+					"--bfinal",
+				},
+				os.Args[3:],
+			)
+			// fmt.Println(commandArgs)
+			if len(commandArgs) == 0 {
+				commandArgs = findIntersection(
+					[]string{
+						"--help",
+					},
+					os.Args[3:],
+				)
+			}
+			gzipCompressFS.Parse(commandArgs)
+			if *helpGzipCompress {
+				gzipCompressFS.Usage()
+			}
+			args = engine.GzipArgs{
+				Btype:  uint32(*btypeGzipCompress),
+				Bfinal: uint32(*bfinalGzipCompress),
+			}
+		}
 		engine.CompressFiles(*algorithmCompress, files, *outputFileExtensionCompress, args)
 		if *deleteAfterCompress {
 			deleteFiles(files)
