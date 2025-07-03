@@ -34,6 +34,7 @@ func NewDecompressionReaderAndWriter(flateReader io.ReadCloser, flateWriter io.W
 	newDecompressionCore.Reader, newDecompressionCore.Writer = io.Pipe()
 	newDecompressionCore.FlateReader, newDecompressionCore.FlateWriter = flateReader, flateWriter
 	newDecompressionCore.CurrentCrc = crc32.NewIEEE()
+	newDecompressionCore.Trailer = make([]byte, 8)
 	newDecompressionReader, newDecompressionWriter := new(DecompressionReader), new(DecompressionWriter)
 	newDecompressionReader.core, newDecompressionWriter.core = newDecompressionCore, newDecompressionCore
 	return newDecompressionReader, newDecompressionWriter
@@ -48,12 +49,16 @@ func (dw *DecompressionWriter) Write(p []byte) (int, error) {
 		p = p[10:]
 	}
 	dw.core.lock.Unlock()
+	// fmt.Printf("[ gzip.DecompressionWriter.Write ] 1\n")
 	if len(dw.core.Trailer)+len(p) < 8 {
+		// fmt.Printf("[ gzip.DecompressionWriter.Write ] 2\n")
 		dw.core.Trailer = append(dw.core.Trailer, p...)
 	} else if len(p) < 8 {
+		// fmt.Printf("[ gzip.DecompressionWriter.Write ] 3\n")
 		dw.core.Trailer = append(dw.core.Trailer[len(p):], p...)
 	} else {
 		copy(dw.core.Trailer, p[len(p)-8:])
+		// fmt.Printf("[ gzip.DecompressionWriter.Write ] len(Trailer): %v\n", len(dw.core.Trailer))
 	}
 	return dw.core.FlateWriter.Write(p)
 }
@@ -85,7 +90,12 @@ func (dr *DecompressionReader) Read(p []byte) (int, error) {
 		return 0, err
 	} else {
 		dr.core.CurrentSize += uint32(n)
-		dr.core.CurrentCrc.Write(p)
+		// if f, err := os.OpenFile("decom.o", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err != nil {
+		// 	panic(err)
+		// } else {
+		// 	f.Write(p)
+		// }
+		dr.core.CurrentCrc.Write(p[:n])
 		return n, nil
 	}
 }
@@ -93,16 +103,19 @@ func (dr *DecompressionReader) Read(p []byte) (int, error) {
 func (dr *DecompressionReader) Close() error {
 	dr.core.lock.Lock()
 	defer dr.core.lock.Unlock()
+
 	if len(dr.core.Trailer) != 8 {
 		return errors.New("trailer data is not sufficient")
 	}
-	givenCrc := binary.LittleEndian.Uint32(dr.core.Trailer[:4])
+	givenCrc := binary.LittleEndian.Uint32(dr.core.Trailer[0:4])
 	givenSize := binary.LittleEndian.Uint32(dr.core.Trailer[4:])
-	if givenCrc != dr.core.CurrentCrc.Sum32() {
-		return errors.New("crc did not match")
-	}
+	// fmt.Printf("[ gzip.DecompressionReader.Close ] givenCrc: %v, given Size: %v\n", givenCrc, givenSize)
+	// fmt.Printf("[ gzip.DecompressionReader.Close ] currentCrc: %v, currentSize: %v\n", dr.core.CurrentCrc.Sum32(), dr.core.CurrentSize)
 	if givenSize != dr.core.CurrentSize {
 		return errors.New("size did not match")
+	}
+	if givenCrc != dr.core.CurrentCrc.Sum32() {
+		return errors.New("crc did not match")
 	}
 	return dr.core.Reader.Close()
 }
