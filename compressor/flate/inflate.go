@@ -19,6 +19,7 @@ type DecompressionReader struct {
 type decompressionCore struct {
 	isInputBufferClosed bool
 	isEobReached        bool
+	cond                *sync.Cond
 	lock                sync.Mutex
 	inputBuffer         io.ReadWriter
 	outputBuffer        io.ReadWriter
@@ -31,8 +32,8 @@ type decompressionCore struct {
 func (dr *DecompressionReader) Read(data []byte) (int, error) {
 	dr.core.lock.Lock()
 	defer dr.core.lock.Unlock()
-	if !dr.core.isInputBufferClosed {
-		return 0, errors.New("input buffer not closed")
+	for !dr.core.isInputBufferClosed {
+		dr.core.cond.Wait()
 	}
 	return dr.core.outputBuffer.Read(data)
 }
@@ -60,10 +61,16 @@ func (dw *DecompressionWriter) Write(data []byte) (int, error) {
 }
 
 func (dw *DecompressionWriter) Close() error {
-	dw.core.lock.Lock()
-	dw.core.isInputBufferClosed = true
-	dw.core.lock.Unlock()
-	return dw.decompress()
+	if err := dw.decompress(); err != nil {
+		return err
+	} else {
+		dw.core.lock.Lock()
+		defer dw.core.lock.Unlock()
+
+		dw.core.isInputBufferClosed = true
+		dw.core.cond.Signal()
+		return nil
+	}
 }
 
 func NewDecompressionReaderAndWriter() (io.ReadCloser, io.WriteCloser) {
@@ -72,6 +79,7 @@ func NewDecompressionReaderAndWriter() (io.ReadCloser, io.WriteCloser) {
 	newDecompressionCore.bitBuffer = new(bitBuffer)
 	newDecompressionCore.isInputBufferClosed = false
 	newDecompressionCore.readChannel = make(chan byte)
+	newDecompressionCore.cond = sync.NewCond(&newDecompressionCore.lock)
 	newDecompressionReader, newDecompressionWriter := new(DecompressionReader), new(DecompressionWriter)
 	newDecompressionReader.core, newDecompressionWriter.core = newDecompressionCore, newDecompressionCore
 	// fmt.Printf("[ flate.NewDecompressionReaderAndWriter ] newDecompressionCore: %v\n", newDecompressionCore)

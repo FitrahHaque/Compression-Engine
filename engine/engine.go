@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/FitrahHaque/Compression-Engine/compressor/flate"
-	gzip "github.com/FitrahHaque/Compression-Engine/compressor/gzip"
+	"github.com/FitrahHaque/Compression-Engine/compressor/gzip"
 	"github.com/FitrahHaque/Compression-Engine/compressor/huffman"
 	"github.com/FitrahHaque/Compression-Engine/compressor/lzss"
 )
@@ -53,6 +53,7 @@ var decompressionReaderAndWriters = map[string]any{
 	"huffman": huffman.NewDecompressionReaderAndWriter,
 	"lzss":    lzss.NewDecompressionReaderAndWriter,
 	"flate":   flate.NewDecompressionReaderAndWriter,
+	"gzip":    gzip.NewDecompressionReaderAndWriter,
 }
 
 func CompressFiles(algorithm string, files []string, fileExtension string, args any) {
@@ -159,12 +160,14 @@ func decompress(algorithm string, fileContent []byte, outputFileName string) {
 	decompressor.init()
 	var content []byte
 	var err error
-	if _, err = decompressor.writer.Write(fileContent); err != nil {
-		panic(err)
-	}
-	if err = decompressor.writer.Close(); err != nil {
-		panic(err)
-	}
+	go func() {
+		if _, err = decompressor.writer.Write(fileContent); err != nil {
+			panic(err)
+		}
+		if err = decompressor.writer.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	if content, err = io.ReadAll(decompressor.reader); err != nil {
 		panic(err)
 	}
@@ -189,5 +192,8 @@ func (d *decompression) init() {
 		d.reader, d.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
 	case "flate":
 		d.reader, d.writer = newReaderAndWriterFunc.(func() (io.ReadCloser, io.WriteCloser))()
+	case "gzip":
+		r, w := decompressionReaderAndWriters["flate"].(func() (io.ReadCloser, io.WriteCloser))()
+		d.reader, d.writer = newReaderAndWriterFunc.(func(io.ReadCloser, io.WriteCloser) (io.ReadCloser, io.WriteCloser))(r, w)
 	}
 }

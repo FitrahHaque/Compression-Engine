@@ -64,12 +64,14 @@ func (cw *CompressionWriter) Close() error {
 	if _, err := io.Copy(cw.core.Writer, cw.core.FlateReader); err != nil {
 		return err
 	}
+	if err := cw.core.FlateReader.Close(); err != nil {
+		return err
+	}
 	var tail [8]byte
 	binary.LittleEndian.PutUint32(tail[0:4], cw.core.Crc.Sum32())
 	binary.LittleEndian.PutUint32(tail[4:8], cw.core.Size)
 	cw.core.Writer.Write(tail[:])
-	cw.core.Writer.Close()
-	return nil
+	return cw.core.Writer.Close()
 }
 
 func (cr *CompressionReader) Read(p []byte) (int, error) {
