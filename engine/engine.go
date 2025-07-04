@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -63,17 +64,31 @@ func CompressFiles(algorithm string, files []string, fileExtension string, args 
 	}
 }
 
-func compressFile(algorithm string, filePath string, outputFileName string, args any) {
+func ClientCompress(algorithm string, filePath string, args any) io.ReadCloser {
+	content := compressFile(algorithm, filePath, "", args)
+	// fmt.Printf("algorithm -- %v, compressed content:\n%v\n", algorithm, content)
+	pr, pw := io.Pipe()
+	go func() {
+		defer pw.Close()
+		io.Copy(pw, bytes.NewReader(content))
+	}()
+	return pr
+}
+
+func compressFile(algorithm string, filePath string, outputFileName string, args any) []byte {
 	fileContent, err := os.ReadFile(filePath)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("Compressing...")
-	compress(algorithm, fileContent, outputFileName, args)
-	fmt.Printf("File `%s` has been compressed into the file `%s`\n", filePath, outputFileName)
+	data := compress(algorithm, fileContent, outputFileName, args)
+	if len(outputFileName) > 0 {
+		fmt.Printf("File `%s` has been compressed into the file `%s`\n", filePath, outputFileName)
+	}
+	return data
 }
 
-func compress(algorithm string, fileContent []byte, outputFileName string, args any) {
+func compress(algorithm string, fileContent []byte, outputFileName string, args any) []byte {
 	compressor := compression{
 		compressionEngine: algorithm,
 	}
@@ -102,12 +117,15 @@ func compress(algorithm string, fileContent []byte, outputFileName string, args 
 	}
 	// fmt.Printf("[ engine.compress ] 6\n")
 	// fmt.Printf("[ engine.compress ] compressed content(in bytes):\n%v\n", content)
-	if err = os.WriteFile(outputFileName, content, 0644); err != nil {
-		panic(err)
+	if len(outputFileName) > 0 {
+		if err = os.WriteFile(outputFileName, content, 0644); err != nil {
+			panic(err)
+		}
 	}
 	fmt.Printf("Original size (in bytes): %v\n", len(fileContent))
 	fmt.Printf("Compressed size (in bytes): %v\n", len(content))
 	fmt.Printf("Compression ratio: %.2f%%\n", float32(len(content))/float32(len(fileContent))*100)
+	return content
 }
 
 func (c *compression) init(params any) {
@@ -159,7 +177,21 @@ func decompressFile(algorithm string, compressedFilePath string) {
 	fmt.Printf("File `%s` has been decompressed into File `%s` into the current directory\n", compressedFilePath, outputFileName)
 }
 
-func decompress(algorithm string, fileContent []byte, outputFileName string) {
+func ServerDecompress(algorithm string, reader io.Reader) io.ReadCloser {
+	if fileContent, err := io.ReadAll(reader); err != nil {
+		panic(err)
+	} else {
+		content := decompress(algorithm, fileContent, "")
+		pr, pw := io.Pipe()
+		go func() {
+			defer pw.Close()
+			io.Copy(pw, bytes.NewReader(content))
+		}()
+		return pr
+	}
+}
+
+func decompress(algorithm string, fileContent []byte, outputFileName string) []byte {
 	decompressor := decompression{
 		decompressionEngine: algorithm,
 	}
@@ -180,9 +212,12 @@ func decompress(algorithm string, fileContent []byte, outputFileName string) {
 	if err = decompressor.reader.Close(); err != nil {
 		panic(err)
 	}
-	if err = os.WriteFile(outputFileName, content, 0666); err != nil {
-		panic(err)
+	if len(outputFileName) > 0 {
+		if err = os.WriteFile(outputFileName, content, 0666); err != nil {
+			panic(err)
+		}
 	}
+	return content
 }
 
 func (d *decompression) init() {

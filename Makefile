@@ -1,7 +1,7 @@
 BINARY  := shrink
 DESTDIR := $(HOME)/bin
 
-.PHONY: all build install clean dev compress decompress deflate inflate gzip
+.PHONY: all build install clean dev compress decompress deflate inflate gzip server
 
 all: build
 
@@ -34,3 +34,6 @@ inflate: deflate
 gzip: install
 	shrink --compress --algorithm=gzip g.txt
 	shrink --decompress --algorithm=gzip g.txt.shk
+
+server: install
+	shrink --server --serverPort=8080 --algorithm=gzip s.txt
