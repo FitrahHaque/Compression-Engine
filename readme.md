@@ -29,6 +29,21 @@ echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
+## Makefile Options
+
+| Target      | Description                                                      |
+|-------------|------------------------------------------------------------------|
+| `build`     | Build the shrink binary (output: shrink.o)                       |
+| `install`   | Build and install shrink to ~/bin                                |
+| `clean`     | Remove the built binary                                          |
+| `dev`       | Install and run a Huffman compress/decompress test               |
+| `compress`  | Install and run LZSS compression on b.txt                        |
+| `decompress`| Run LZSS decompression on b.txt.shk (after compress)             |
+| `deflate`   | Install and run Flate compression on f.txt                       |
+| `inflate`   | Run Flate decompression on f.txt.shk (after deflate)             |
+| `gzip`      | Install and run Gzip compression/decompression on g.txt          |
+| `server`    | Install and run HTTP server for Gzip decompression on s.txt      |
+
 ## 🖥️ Local CLI Usage
 
 **Compress a file:**
