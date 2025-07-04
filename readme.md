@@ -56,10 +56,10 @@ shrink --compress --algorithm=gzip      --outfileext=.gz  example.txt
 
 **Decompress a file:**
 ```sh
-shrink --decompress --algorithm=huffman example.txt.huf
-shrink --decompress --algorithm=lzss    example.txt.lzs
-shrink --decompress --algorithm=deflate example.txt.dfl
-shrink --decompress --algorithm=gzip    example.txt.gz
+shrink --decompress --algorithm=huffman example.txt.shk
+shrink --decompress --algorithm=lzss    example.txt.shk
+shrink --decompress --algorithm=deflate example.txt.shk
+shrink --decompress --algorithm=gzip    example.txt.shk
 ```
 
 <!-- **Benchmark compression:**
